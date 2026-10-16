@@ -58,11 +58,54 @@ Cloudflare also tested INT4 weights on GLM 5.2 {{field Cloudflare 2026-08}}. Dec
 
 Decode is limited by memory traffic, so smaller weights help. Prefill is limited by compute, and dequantizing INT4 costs compute. Cloudflare split the two phases across servers and runs INT4 for decode and FP8 for prefill. [Section 6.3](#s-prefill-decode-disaggregation) explains the split.
 
+## What we measured on a GB10
+
+We served `Qwen/Qwen3-30B-A3B-Instruct-2507` twice on one NVIDIA GB10. The first server loaded the BF16 checkpoint. The second loaded the FP8 checkpoint `Qwen/Qwen3-30B-A3B-Instruct-2507-FP8` with `--kv-cache-dtype fp8_e4m3`. Both used `--mem-fraction-static 0.7`, and we passed no `--quantization` flag.
+
+```listing
+title: the FP8 server detects its checkpoint and sizes its pool
+source: capture/gpu/out-gb10/server-fp8.log
+lang: text
+note: Four lines from the startup log. Timestamps are cut.
+---
+… Detected fp8 checkpoint.
+… Using FP8 KV cache but no scaling factors provided. Defaulting to scaling factors of 1.0.
+… Load weight end. elapsed=152.64 s, type=Qwen3MoeForCausalLM, quant=fp8, fmt=e4m3, avail mem=83.95 GB, mem usage=30.14 GB.
+… KV Cache is allocated. dtype: torch.float8_e4m3fn, #tokens: 1080523, K size: 24.73 GB, V size: 24.73 GB
+```
+
+**We measured** what the two choices bought. The weights went from 58.36 GB to 30.14 GB, and the load time went from 313.63 s to 152.64 s. The pool went from 227,098 tokens to 1,080,523 tokens, 4.76 times as many.
+
+Two effects multiply in that number. The smaller weights left 28.22 GB more memory for the pool, which grew from 20.80 GB to 49.46 GB in the units of the log. Each token then took half the bytes, 49,152 against 98,304 for 48 layers with 4 KV heads of size 128.
+
+The second line of the listing is the warning from the previous subsection. We gave no scale file, so every scale is 1.0. Both servers wrote the same 12 tokens for our first request at temperature 0. That is one prompt, and it is not an accuracy check.
+
+Speed changed at every load. The sweep ran three seeds at each concurrency:
+
+| Concurrency | BF16 output tok/s | FP8 output tok/s | BF16 median TPOT | FP8 median TPOT |
+|---|---|---|---|---|
+| 1 | 29.14 | 51.50 | 32.52 ms | 18.41 ms |
+| 8 | 74.11 | 137.00 | 102.21 ms | 54.96 ms |
+| 32 | 150.66 | 283.19 | 201.91 ms | 104.12 ms |
+| 64 | 235.38 | 440.86 | 254.06 ms | 131.78 ms |
+
+```figure
+id: fig-4-3b
+kind: chart
+title: FP8 moves the whole latency and throughput curve
+claim: On the GB10, FP8 weights and FP8 KV gave more tokens per second and less time per token at every concurrency from 1 to 64.
+caption: Each dot is one concurrency, from c1 to c64. The x axis is output tokens per second and the y axis is median TPOT. Plum is BF16 and green is FP8. From capture/gpu/summary/gb10.json.
+```
+
+This result differs from the Cloudflare result above. There, the FP8 cache was a little slower per token and won on capacity. Here, the weights were FP8 too. Decode on this machine reads weights from a memory with modest bandwidth, so half the bytes gave almost twice the speed.
+
 ## Our position
 
 Use an offline-quantized checkpoint and pass no `--quantization` flag. The docs say the same: "offline quantization is recommended over online quantization" {{docs}}. Online quantization adds load time and gives you a checkpoint that nobody evaluated.
 
 Choose a KV cache dtype from memory, not from speed. If your server queues requests because the pool is full, an FP8 cache with a scale file is the cheapest capacity you can buy. If the pool has room, keep the model dtype.
+
+On a GPU where decode waits for memory, such as the GB10, FP8 weights are also the cheapest speed you can buy. We measured almost twice the throughput at every concurrency. Check accuracy on your own tasks before you serve it.
 
 Quantize per phase when you run prefill and decode on separate servers. Smaller weights help decode, and they can slow prefill.
 
@@ -79,6 +122,7 @@ Quantize per phase when you run prefill and decode on separate servers. Smaller 
 - Replace --quantization gptq with no flag or gptq_marlin on CUDA builds.
 - Supply a KV scale file and run an accuracy check before serving an FP8 KV cache.
 - Choose KV cache dtype by queue length and pool usage, then measure speed.
+- Read the KV Cache is allocated line to see the pool size each choice buys.
 ```
 
-Sources: python/sglang/srt/arg_groups/choices.py (QUANTIZATION_CHOICES), arg_groups/fields/model.py (kv_cache_dtype, quantization_param_path), configs/model_config.py (_verify_quantization), layers/quantization/__init__.py (get_quantization_config), layers/quantization/gptq/gptq.py (override_quantization_method), layers/quantization/fp8.py, and docs/docs/advanced_features/quantization.mdx at v0.5.22; PR #32114; field reports by Cloudflare (2026-08-03), joshua8.ai (2026-01-10), and Pivot News (2026-05-19).
+Sources: capture/gpu/out-gb10/server-default.log, server-fp8.log, server-fp8.command.txt, generate.txt, fp8-generate.txt, capture/gpu/summary/gb10.json, python/sglang/srt/arg_groups/choices.py (QUANTIZATION_CHOICES), arg_groups/fields/model.py (kv_cache_dtype, quantization_param_path), configs/model_config.py (_verify_quantization), layers/quantization/__init__.py (get_quantization_config), layers/quantization/gptq/gptq.py (override_quantization_method), layers/quantization/fp8.py, and docs/docs/advanced_features/quantization.mdx at v0.5.22; PR #32114; field reports by Cloudflare (2026-08-03), joshua8.ai (2026-01-10), and Pivot News (2026-05-19).

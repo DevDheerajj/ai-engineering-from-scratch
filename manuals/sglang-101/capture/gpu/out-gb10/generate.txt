@@ -1,0 +1,94 @@
+POST /generate
+{
+  "text": " Paris. The capital of the United States is Washington, D",
+  "output_ids": [
+    12095,
+    13,
+    576,
+    6722,
+    315,
+    279,
+    3639,
+    4180,
+    374,
+    6515,
+    11,
+    422
+  ],
+  "meta_info": {
+    "id": "ed754f4093c8497a9d12a7cfae2be406",
+    "finish_reason": {
+      "type": "length",
+      "length": 12
+    },
+    "prompt_tokens": 5,
+    "weight_version": "default",
+    "num_retractions": 0,
+    "storage_prefetch_wait": 0.0,
+    "storage_staging_wait": 0.0,
+    "forward_entry_time": 1792161420.4343894,
+    "prefill_finished_time": 1792161420.5072699,
+    "queue_time": 0.00033091400109697133,
+    "reasoning_tokens": 0,
+    "completion_tokens": 12,
+    "cached_tokens": 2,
+    "weight_versions": [
+      {
+        "version": "default",
+        "start": 0,
+        "end": 12
+      }
+    ],
+    "cached_tokens_details": {
+      "device": 2,
+      "host": 0
+    },
+    "dp_rank": null,
+    "e2e_latency": 0.42738989400095306,
+    "request_received_ts": 1792161420.4334273,
+    "first_token_latency": 0.07384243645356037,
+    "api_server_dispatch_finish_ts": 1792161420.4336863,
+    "request_finished_ts": 1792161420.8608174,
+    "decode_throughput": 31.11322048900736,
+    "response_sent_to_client_ts": 1792161420.8610146
+  }
+}
+POST /v1/chat/completions
+{
+  "id": "8d4871b88c754498990118b92eaee9da",
+  "object": "chat.completion",
+  "created": 1792161421,
+  "model": "default",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Mars",
+        "reasoning_content": null
+      },
+      "logprobs": null,
+      "finish_reason": "stop",
+      "matched_stop": 151645
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 17,
+    "total_tokens": 20,
+    "completion_tokens": 3,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "reasoning_tokens": 0
+  },
+  "metadata": {
+    "weight_version": "default",
+    "weight_versions": [
+      {
+        "version": "default",
+        "start": 0,
+        "end": 3
+      }
+    ]
+  }
+}

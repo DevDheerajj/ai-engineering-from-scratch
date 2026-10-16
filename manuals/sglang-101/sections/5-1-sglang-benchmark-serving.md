@@ -124,6 +124,75 @@ The knee is the cap after which throughput stops rising. On this machine it is a
 
 **What transfers to a GPU.** The absolute numbers do not. A 0.6B model on Apple silicon says nothing about an H100. The shape does transfer. Every server has a knee, the latency past it grows faster than the throughput, and the default admission limit sits far above it.
 
+## The same sweep on a GPU, run as an experiment
+
+One run on a GPU told us something false. The GPU kit started the default server on an NVIDIA GB10 with Qwen3-30B-A3B and ran each cap once.
+
+```listing
+title: the server under test on the GB10
+source: capture/gpu/out-gb10/server-default.command.txt
+lang: text
+note: The full command, as the GPU kit started it.
+---
+sglang serve --model-path Qwen/Qwen3-30B-A3B-Instruct-2507 --host 127.0.0.1 --port 30000 --enable-cache-report --enable-metrics --mem-fraction-static 0.7
+```
+
+At a cap of 8 the single run reported a median first token of 975.61 ms. At a cap of 32 it reported 355.29 ms. More load gave a faster first token, and no queue explains that. One run is one sample, and one sample can be wrong for reasons you never see.
+
+So we ran the sweep the way a model team runs a training comparison. `capture/gpu/sweep.py` runs every cap from 1 to 64 three times, with seeds 1, 2, and 3. It passes `--output-details`, so each run keeps the TTFT and the token gaps of every request. `capture/gpu/summarize.py` reduces the three runs of each point to the median, the lowest, and the highest value.
+
+| Cap | Single kit run, median TTFT | Three seeds, median TTFT (lowest to highest) |
+|---|---|---|
+| 8 | 975.61 ms | 209.98 ms (185.25 to 216.02) |
+| 32 | 355.29 ms | 416.37 ms (338.06 to 434.64) |
+
+**We measured** both on the same GB10. The 975.61 ms result did not come back in three more runs. The first token gets slower as the cap grows, as the queue predicts.
+
+```figure
+id: fig-5-1c
+kind: chart
+title: output throughput against concurrency on a GB10
+claim: Three seeds per point agree closely, so each line is a measurement and the gaps between the lines are real.
+caption: Read each line from left to right, one server configuration per line. The band is the lowest and the highest of three seeds. Qwen3-30B-A3B, 512 tokens in and 128 out. From capture/gpu/summary/gb10.json.
+```
+
+The widest band in the figure is EAGLE-3 at a cap of 8, from 86.93 to 107.23 tok/s. Every other band is inside about 10 percent of its median. With that spread, a gap of two times is real. At a cap of 64, FP8 gave 440.86 tok/s and BF16 gave 235.38 tok/s. The run without CUDA graphs lies on the default line, and [section 4.1](#s-forwardmode-and-cuda-graphs) explains why.
+
+## Goodput finds the knee that throughput hides
+
+On the GB10, BF16 throughput still rises at a cap of 64, because the KV pool holds 234,600 tokens. A throughput curve with no knee does not tell you where to stop. A latency target does.
+
+**Goodput:** the number of requests per second that finish inside the latency target. `capture/gpu/summarize.py` counts a request when its first token comes in under 1 s and its mean time per token is under 100 ms.
+
+| Cap | BF16 goodput | BF16 median TPOT | FP8 goodput | FP8 median TPOT |
+|---|---|---|---|---|
+| 4 | 0.44 req/s | 71.01 ms | 0.80 req/s | 38.60 ms |
+| 8 | 0 | 102.21 ms | 1.07 req/s | 54.96 ms |
+| 16 | 0 | 154.24 ms | 1.10 req/s | 81.90 ms |
+| 32 | 0 | 201.91 ms | 0 | 104.12 ms |
+
+BF16 goodput is highest at a cap of 4. From a cap of 8, the median request takes longer than 100 ms per token, so goodput is 0. Throughput at that cap is 74.11 tok/s and still rising. FP8 holds the target up to a cap of 16. **Our position:** choose the cap from goodput at your own target, and use the throughput curve only to explain it.
+
+## Record the GPU clock with every run
+
+Our first sweep on an NVIDIA L4 reported that CUDA graphs did nothing. The median time per token at a cap of 1 was 103.4 ms with graphs and 103.4 ms without. The three seeds at that cap gave from 10.0 to 14.9 tok/s, a spread of half the median. Then we read `nvidia-smi` during the sweep.
+
+```listing
+title: the L4 during the first sweep
+source: capture/gpu/incidents/l4-thermal-throttle.txt
+lang: text
+note: The header row and the row of the GPU that ran the sweep.
+---
+index, temperature.gpu, power.draw [W], power.limit [W], clocks.current.sm [MHz], clocks.max.sm [MHz], clocks_event_reasons.active, clocks_event_reasons.sw_thermal_slowdown, clocks_event_reasons.hw_thermal_slowdown, clocks_event_reasons.sw_power_cap, utilization.gpu [%]
+0, 87, 58.36 W, 72.00 W, 360 MHz, 2040 MHz, 0x0000000000000020, Active, Not Active, Not Active, 100 %
+```
+
+The GPU was at 87 C with software thermal slowdown active, and its SM clock was 360 MHz of 2040. The L4 is a 72 W card with passive cooling, and the second card in the same chassis ran other work at the same time. We had measured a hot GPU, and the server under it was not the cause.
+
+Now `capture/gpu/sweep.py` samples `nvidia-smi` once a second into a `.gpu.csv` file beside each run. Before each run it waits up to 900 s for the GPU to cool to 65 C. `capture/gpu/summarize.py` adds the median SM clock, the highest temperature, and the share of samples with a thermal slowdown bit to each point. The throttled L4 runs stay in `capture/gpu/incidents/` as evidence and appear in no chart. The GB10 load sweep in [figure 5.1c](#fig-5-1c) ran before we added the sampler, so its tight bands are the only check on it.
+
+**Our position:** a benchmark without the clock and the temperature of each run is not evidence. Read the clock first, then the throughput.
+
 ## Our position
 
 Report the highest concurrency that still meets your latency target, and report its throughput together with p50 and p99 TTFT and TPOT. "255 tok/s at a cap of 8, with a median first token of 0.79 s" is a result. "255 tok/s" is a slogan.
@@ -141,6 +210,9 @@ Then enforce the knee outside the engine. The engine's own limit is set from mem
 - Report throughput only together with p50 and p99 TTFT and TPOT at the same cap.
 - Read Concurrency as an achieved average and Peak concurrent requests as a per-second count.
 - Enforce the knee in your client or gateway, because the engine admits far more.
+- Run each point with three seeds and plot the lowest and the highest result.
+- Choose the concurrency cap from goodput at your latency target.
+- Record the SM clock and the temperature with every run, and drop throttled runs.
 ```
 
-Sources: python/sglang/benchmark/serving.py (calculate_metrics, argument defaults), python/sglang/benchmark/datasets/common.py (compute_random_lens), python/sglang/bench_serving.py, PR #40795, all at v0.5.22 (baa9befa); capture/out/serve-help.txt, capture/out/server-default.command.txt, capture/out/server-default.log, capture/out/bench-random-c1.txt, capture/out/bench-random-c8.txt, capture/out/bench-random-c32.txt; issue #3196.
+Sources: python/sglang/benchmark/serving.py (calculate_metrics, argument defaults), python/sglang/benchmark/datasets/common.py (compute_random_lens), python/sglang/bench_serving.py, PR #40795, all at v0.5.22 (baa9befa); capture/out/serve-help.txt, capture/out/server-default.command.txt, capture/out/server-default.log, capture/out/bench-random-c1.txt, capture/out/bench-random-c8.txt, capture/out/bench-random-c32.txt; capture/gpu/sweep.py, capture/gpu/summarize.py, capture/gpu/summary/gb10.json, capture/gpu/out-gb10/server-default.command.txt, capture/gpu/out-gb10/bench-random-c8.txt, capture/gpu/out-gb10/bench-random-c32.txt, capture/gpu/incidents/l4-thermal-throttle.txt; issue #3196.

@@ -70,6 +70,73 @@ The automatic rule is reasonable on a dedicated GPU. Nothing else allocates memo
 - **Unknown capacity.** On a device where SGLang cannot read the memory size, the fraction becomes 0.95 and leaves 5 percent for activations. Issue #39675 reports exactly that failure on Apple MPS, an out-of-memory error on the first prefill {{issue #39675}}.
 - **Extra memory the estimate does not know about.** Issue #42510 shows draft-model copies that stay in memory while the target pool is sized, so the draft pool allocation fails {{issue #42510}}. Issue #6027 shows a 64K-token DeepSeek-V3 prompt that ran out of memory in attention, although the log reported room for 274,934 KV tokens {{issue #6027}}.
 
+## Unified memory on a GB10
+
+**We measured** the same rule on an NVIDIA GB10, the chip of a DGX Spark. Its CPU and GPU share 121.7 GiB of memory. There is no separate GPU memory, and that changes what each number in the startup log means.
+
+```listing
+title: one GB10 startup, from capacity to pool
+source: capture/gpu/out-gb10/server-default.log
+lang: text
+note: Lines cut from the startup of the default GPU configuration, Qwen3-30B-A3B in BF16 with a fraction of 0.7.
+---
+[2026-10-16 14:30:35] Failed to get GPU memory capacity from nvidia-smi. Falling back to torch.cuda.mem_get_info(). Reported total GPU memory per device (MiB): [124610], using min: 124610 MiB.
+…
+[2026-10-16 14:30:45] Load weight begin. avail mem=113.46 GB
+…
+[2026-10-16 14:35:59] Load weight end. elapsed=313.63 s, type=Qwen3MoeForCausalLM, avail mem=55.10 GB, mem usage=58.36 GB.
+[2026-10-16 14:36:07] KV Cache is allocated. dtype: torch.bfloat16, #tokens: 227098, K size: 10.40 GB, V size: 10.40 GB
+[2026-10-16 14:36:07] Memory pool end. avail mem=32.11 GB
+```
+
+The first line is the capacity. `nvidia-smi` reports no memory size for the GB10, so SGLang takes the total from PyTorch.
+
+The second line is free memory, and here the code is careful. On a device that shares system memory, `torch.cuda.mem_get_info()` counts the file cache of the kernel as used. Our kit read 67.7 GiB free that way at the start of one run. SGLang checks whether the device is integrated, and then it reads the available memory of the operating system instead {{code}}. That number counts cache that the kernel can free, and it read 113.55 GB at the same start.
+
+The cost of that choice is that the pool size moves with the rest of the machine. Six BF16 starts used the same command and the same weights:
+
+| Configuration | Available before weights | Weights, as SGLang measured them | KV pool, tokens |
+|---|---|---|---|
+| default | 113.46 GB | 58.36 GB | 227,098 |
+| no CUDA graph | 113.58 GB | 57.58 GB | 236,518 |
+| deterministic | 114.12 GB | 57.91 GB | 237,200 |
+| no radix cache | 113.60 GB | 57.52 GB | 237,338 |
+| no overlap | 114.03 GB | 55.09 GB | 261,113 |
+| EAGLE-3, with a draft model | 113.55 GB | 58.23 GB | 217,886 |
+
+The weights did not change, yet their measured size went from 55.09 GB to 58.36 GB. SGLang measures them as the drop in available memory, and the kernel cache changed during each load. Among the five starts without a draft model, the pool differs by 15 percent. On unified memory, a pool size from one start is an estimate for the next start, not a constant.
+
+## A pool that other programs see
+
+On a GB10, the KV pool is tens of GB, and SGLang allocates it in a few seconds. Every other program on the machine sees that memory go. Our GB10 also ran a memory guard daemon for its other users. It stops the process that grows fastest when free memory gets low. It stopped our scheduler three times, each time just after the weights loaded:
+
+```listing
+title: the memory guard stops the scheduler
+source: capture/gpu/incidents/gb10-memory-guard-pauses.txt
+lang: text
+note: The first two lines of the guard log for our runs on the GB10.
+---
+2026-10-16T12:53:16+00:00 2026/10/16 12:53:16 guardian level: Critical: 34.2 GiB left before the freeze zone.
+2026-10-16T12:53:16+00:00 2026/10/16 12:53:16 guardian pause: Paused sglang::schedul (pid 2983880, rohit): it grew 36.7 GiB in 5s with 34.2 GiB left. Resume or stop it from the app.
+```
+
+SGLang logged no error. From the server side, startup stopped after `Load weight end` and never reached the health check. The guard was correct by its own rule: the scheduler was the fastest-growing process. Seconds later the guard logged "Back to normal", because the pool was complete. We agreed with the owner of the machine to stop the guard for the time of our runs.
+
+The NVIDIA driver also reports memory errors at startup. The kernel log of the GB10 holds bursts of this line:
+
+```listing
+title: the driver line at server startup
+source: capture/gpu/incidents/gb10-driver-no-memory.txt
+lang: text
+note: The last line of the file. The lines above it count the bursts per minute.
+---
+NVRM: nvCheckOkFailedNoLog: Check failed: Out of memory [NV_ERR_NO_MEMORY] (0x00000051) returned from _memdescAllocInternal(pMemDesc) @ mem_desc.c:1359
+```
+
+Six bursts match a `KV Cache is allocated` line of the kit to the minute. They are at 14:36, 14:55, 15:04, 15:30, 15:47, and 15:58. Every one of those servers became healthy and finished its benchmarks. The start with a 4,096-token pool logged no burst. The other bursts came from our test and sweep servers.
+
+**Our position:** on unified memory, the KV pool is memory that the whole machine gives up. Pass `--mem-fraction-static` on purpose, and tell the other users of the machine before you start. Do not alert on the driver line alone. Alert when a server does not become healthy.
+
 ## Our position: set the fraction yourself on any shared machine
 
 On a machine that runs anything besides SGLang, pass `--mem-fraction-static` yourself. The capture kit uses 0.4 on the Mac. With that value, the same benchmark that crashed run 2 finished all 128 requests at concurrency 32.
@@ -103,6 +170,7 @@ One more caution for Apple silicon. The `kv_cache_memory_usage_gb` metric read 0
 - Raise the fraction in small steps only when the pool is full and requests retract.
 - Lower the fraction when long prompts fail with out-of-memory errors in attention.
 - Compare engines only when both report their KV pool sizes.
+- On a GB10, read the pool size in each startup log, because it changes between starts.
 ```
 
-Sources: python/sglang/srt/arg_groups/memory_hook.py (handle_gpu_memory_settings), python/sglang/srt/mem_cache/kv_cache_configurator.py (_profile_available_bytes), python/sglang/srt/hardware_backend/mlx/model_runner.py (_compute_pool_size), python/sglang/srt/arg_groups/fields/schedule.py (mem_fraction_static) at v0.5.22, capture/out/oom-exploratory.log, capture/out/server-default.log, capture/out/metrics.txt, issues #39675, #42510, and #6027, the Rawlinson benchmark of 2025-12-05.
+Sources: python/sglang/srt/arg_groups/memory_hook.py (handle_gpu_memory_settings), python/sglang/srt/mem_cache/kv_cache_configurator.py (_profile_available_bytes), python/sglang/srt/hardware_backend/mlx/model_runner.py (_compute_pool_size), python/sglang/srt/arg_groups/fields/schedule.py (mem_fraction_static) at v0.5.22, capture/out/oom-exploratory.log, capture/out/server-default.log, capture/out/metrics.txt, python/sglang/srt/utils/common.py (get_available_gpu_memory) at v0.5.22, capture/gpu/out-gb10/server-*.log, capture/gpu/out-gb10/environment.json, capture/gpu/incidents/gb10-memory-guard-pauses.txt, capture/gpu/incidents/gb10-driver-no-memory.txt, issues #39675, #42510, and #6027, the Rawlinson benchmark of 2025-12-05.

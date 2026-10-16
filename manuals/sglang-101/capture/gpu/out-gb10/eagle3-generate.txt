@@ -1,0 +1,104 @@
+POST /generate
+{
+  "text": " Paris. The capital of the United States is Washington, D",
+  "output_ids": [
+    12095,
+    13,
+    576,
+    6722,
+    315,
+    279,
+    3639,
+    4180,
+    374,
+    6515,
+    11,
+    422
+  ],
+  "meta_info": {
+    "id": "2e064df0fa56426dbfd1d04847025f51",
+    "finish_reason": {
+      "type": "length",
+      "length": 12
+    },
+    "prompt_tokens": 5,
+    "weight_version": "default",
+    "num_retractions": 0,
+    "storage_prefetch_wait": 0.0,
+    "storage_staging_wait": 0.0,
+    "forward_entry_time": 1792165712.0858917,
+    "prefill_finished_time": 1792165712.1611822,
+    "queue_time": 0.0003162479988532141,
+    "reasoning_tokens": 0,
+    "completion_tokens": 12,
+    "cached_tokens": 1,
+    "weight_versions": [
+      {
+        "version": "default",
+        "start": 0,
+        "end": 12
+      }
+    ],
+    "cached_tokens_details": {
+      "device": 1,
+      "host": 0
+    },
+    "dp_rank": null,
+    "e2e_latency": 0.6053077870019479,
+    "spec_accept_rate": 0.07407407407407407,
+    "spec_accept_length": 1.3333333333333333,
+    "spec_num_correct_drafts": 2,
+    "spec_num_proposed_drafts": 27,
+    "spec_verify_ct": 9,
+    "spec_correct_drafts_histogram": [
+      8,
+      0,
+      1
+    ],
+    "request_received_ts": 1792165712.0847194,
+    "first_token_latency": 0.07646273970021866,
+    "api_server_dispatch_finish_ts": 1792165712.0851164,
+    "request_finished_ts": 1792165712.6900272,
+    "decode_throughput": 20.800043521489233,
+    "response_sent_to_client_ts": 1792165712.6906407
+  }
+}
+POST /v1/chat/completions
+{
+  "id": "f41c700a68d843f68da4ae2c861c3de2",
+  "object": "chat.completion",
+  "created": 1792165712,
+  "model": "default",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Mars",
+        "reasoning_content": null
+      },
+      "logprobs": null,
+      "finish_reason": "stop",
+      "matched_stop": 151645
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 17,
+    "total_tokens": 20,
+    "completion_tokens": 3,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "reasoning_tokens": 0
+  },
+  "metadata": {
+    "weight_version": "default",
+    "weight_versions": [
+      {
+        "version": "default",
+        "start": 0,
+        "end": 3
+      }
+    ]
+  }
+}
