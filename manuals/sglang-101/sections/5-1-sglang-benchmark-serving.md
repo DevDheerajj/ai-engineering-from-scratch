@@ -158,6 +158,24 @@ caption: Read each line from left to right, one server configuration per line. T
 
 The widest band in the figure is EAGLE-3 at a cap of 8, from 86.93 to 107.23 tok/s. Every other band is inside about 10 percent of its median. With that spread, a gap of two times is real. At a cap of 64, FP8 gave 440.86 tok/s and BF16 gave 235.38 tok/s. The run without CUDA graphs lies on the default line, and [section 4.1](#s-forwardmode-and-cuda-graphs) explains why.
 
+### A median hides two populations
+
+`--output-details` writes the first-token time of every request. We sorted all requests of the three seeds at a cap of 16 and plotted them.
+
+```figure
+id: fig-5-1e
+kind: chart
+title: every first token of three runs at a cap of 16, sorted
+claim: About half of the requests waited several times longer than the other half, so the median describes neither group.
+caption: Each line rises from the fastest request to the slowest. The rose line marks P90. The time axis is logarithmic. From the per-request records in capture/gpu/summary/gb10.json, the load sweep at a cap of 16.
+```
+
+**We measured** two groups on the GB10. For BF16, the fastest half of the requests had a first token from 186.3 to 211.8 ms. From the 68th percentile, requests waited 1,639.8 to 1,743.4 ms. The median was 237.6 ms and P90 was 1,721.5 ms, 7.2 times more. FP8 had the same two groups: 122.7 to 139.5 ms for the fast half, and 589.9 to 1,162.2 ms for the slow half.
+
+EAGLE-3 had the slowest median, 579.3 ms, and the shortest tail, 1,007.4 ms at P90. Its time per token had the widest spread instead: 82.8 ms at the median and 191.3 ms at P99. The number of draft tokens accepted changes from step to step.
+
+**Our reading of the two groups:** the workload made them. Every request asked for exactly 128 tokens, because `--random-range-ratio 1.0` fixes the length. Requests that start together therefore finish together, and their replacements arrive together. Each wave then queues for prefill behind the requests ahead of it. Real traffic has mixed lengths. If you test with fixed lengths, read P90 as the cost of a burst, not as the cost of a normal request.
+
 ## Goodput finds the knee that throughput hides
 
 On the GB10, BF16 throughput still rises at a cap of 64, because the KV pool holds 234,600 tokens. A throughput curve with no knee does not tell you where to stop. A latency target does.
