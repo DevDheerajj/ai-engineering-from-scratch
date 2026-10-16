@@ -173,6 +173,20 @@ On the GB10, BF16 throughput still rises at a cap of 64, because the KV pool hol
 
 BF16 goodput is highest at a cap of 4. From a cap of 8, the median request takes longer than 100 ms per token, so goodput is 0. Throughput at that cap is 74.11 tok/s and still rising. FP8 holds the target up to a cap of 16. **Our position:** choose the cap from goodput at your own target, and use the throughput curve only to explain it.
 
+A cap is a closed loop. Each client waits for its answer before it sends the next request, so the server can never receive more work than it finishes. Real users do not wait for each other. `--request-rate` sends requests at Poisson arrival times instead, and the queue grows when the server is slower than the arrivals. We ran the same model at 0.5 to 16 requests per second, three seeds each.
+
+```figure
+id: fig-5-1d
+kind: chart
+title: requests served and requests served within the target, against offered load
+claim: FP8 served 1.03 requests per second within the target at 1 offered, and BF16 served almost no request within the target at any rate.
+caption: Dashed lines are requests completed per second. Solid lines are requests that met the target, with the range of three seeds as a band. Green is FP8 with an FP8 KV cache, plum is BF16. From capture/gpu/summary/gb10.json, the rate sweep.
+```
+
+**We measured** this on the GB10. At 0.5 requests per second, BF16 already had a median time per token of 177.5 ms. The arrivals overlap: at 0.52 requests per second, each 128 tokens long at 177.5 ms per token, about 12 requests share each decode step. Only 0.07 requests per second met the target. FP8 met the target for every request up to 1 per second, then fell to 0.17 at 2.
+
+At 16 per second, BF16 completed 3.88 requests per second, and its P99 first token took 55,640.4 ms. FP8 completed 8.26. The GPU clock stayed at 2,496 MHz up to 4 requests per second. At 16, the GPU reached 89 C and spent 7.3 percent of the samples in thermal slowdown. The last BF16 point measures a hot GPU as well as a full queue.
+
 ## Record the GPU clock with every run
 
 Our first sweep on an NVIDIA L4 reported that CUDA graphs did nothing. The median time per token at a cap of 1 was 103.4 ms with graphs and 103.4 ms without. The three seeds at that cap gave from 10.0 to 14.9 tok/s, a spread of half the median. Then we read `nvidia-smi` during the sweep.
