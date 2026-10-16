@@ -99,6 +99,53 @@ caption: Each dot is one concurrency, from c1 to c64. The x axis is output token
 
 This result differs from the Cloudflare result above. There, the FP8 cache was a little slower per token and won on capacity. Here, the weights were FP8 too. Decode on this machine reads weights from a memory with modest bandwidth, so half the bytes gave almost twice the speed.
 
+## The same test on a 24 GB L4
+
+The GB10 has 121.7 GiB of memory, so its BF16 pool never ran short. We wanted to see the other case, so we ran the same pair on one NVIDIA L4 with `Qwen/Qwen3-8B` and `Qwen/Qwen3-8B-FP8`. Both servers used `--mem-fraction-static 0.85`. The sweep waited for the card to cool to 72°C before each run.
+
+```listing
+title: the BF16 server on the L4
+source: capture/gpu/out-l4/server-default.log
+lang: text
+note: Two lines from the startup log. Timestamps are cut.
+---
+… Load weight end. elapsed=3.92 s, type=Qwen3ForCausalLM, avail mem=6.59 GB, mem usage=15.28 GB.
+… KV Cache is allocated. dtype: torch.bfloat16, #tokens: 24094, K size: 1.65 GB, V size: 1.65 GB
+```
+
+```listing
+title: the FP8 server on the L4
+source: capture/gpu/out-l4/server-fp8.log
+lang: text
+note: Two lines from the startup log. Timestamps are cut.
+---
+… Load weight end. elapsed=2.54 s, type=Qwen3ForCausalLM, quant=fp8, fmt=e4m3, avail mem=13.06 GB, mem usage=8.81 GB.
+… KV Cache is allocated. dtype: torch.float8_e4m3fn, #tokens: 142369, K size: 4.89 GB, V size: 4.89 GB
+```
+
+**We measured** a pool of 24,094 tokens for BF16 and 142,369 tokens for FP8, 5.91 times as many. Each request in the sweep had 512 input tokens and 128 output tokens. The BF16 pool held about 37 such requests.
+
+| Concurrency | BF16 output tok/s | FP8 output tok/s | BF16 median TTFT | FP8 median TTFT |
+|---|---|---|---|---|
+| 1 | 13.42 | 24.53 | 189.16 ms | 140.72 ms |
+| 16 | 201.09 | 313.92 | 211.78 ms | 147.52 ms |
+| 32 | 270.11 | 507.20 | 2,969.61 ms | 199.09 ms |
+| 64 | 250.85 | 735.91 | 18,348.57 ms | 296.42 ms |
+
+```figure
+id: fig-4-3c
+kind: chart
+title: On a 24 GB card the BF16 pool fills
+claim: On one L4, BF16 throughput stopped at 270 tokens per second at concurrency 32, and FP8 kept climbing to 736 at 64.
+caption: Output throughput against max concurrency, three seeds per point. Plum is BF16 and green is FP8 weights with an FP8 KV cache. From capture/gpu/summary/l4.json.
+```
+
+The scheduler log shows the cause at concurrency 64. The BF16 server ran at most 38 requests, with token usage at 0.99 and 26 requests in the queue. The FP8 server ran all 64 requests at token usage 0.29 with an empty queue. The BF16 throughput fell from 32 to 64 because more requests waited, and each waiting request added its wait to TTFT.
+
+At concurrency 1 the pool size does not matter, and FP8 was still faster: 39.66 ms per token against 60.16 ms. That is the GB10 effect again. Decode on an L4 reads every weight for every token, and FP8 weights are half the bytes.
+
+On this card the goodput result is clear. Our target was TTFT under 1 s and TPOT under 100 ms. BF16 served 0 requests per second within target at concurrency 32 and 64. FP8 served 2.87 requests per second within target at 64.
+
 ## Our position
 
 Use an offline-quantized checkpoint and pass no `--quantization` flag. The docs say the same: "offline quantization is recommended over online quantization" {{docs}}. Online quantization adds load time and gives you a checkpoint that nobody evaluated.
@@ -125,4 +172,4 @@ Quantize per phase when you run prefill and decode on separate servers. Smaller 
 - Read the KV Cache is allocated line to see the pool size each choice buys.
 ```
 
-Sources: capture/gpu/out-gb10/server-default.log, server-fp8.log, server-fp8.command.txt, generate.txt, fp8-generate.txt, capture/gpu/summary/gb10.json, python/sglang/srt/arg_groups/choices.py (QUANTIZATION_CHOICES), arg_groups/fields/model.py (kv_cache_dtype, quantization_param_path), configs/model_config.py (_verify_quantization), layers/quantization/__init__.py (get_quantization_config), layers/quantization/gptq/gptq.py (override_quantization_method), layers/quantization/fp8.py, and docs/docs/advanced_features/quantization.mdx at v0.5.22; PR #32114; field reports by Cloudflare (2026-08-03), joshua8.ai (2026-01-10), and Pivot News (2026-05-19).
+Sources: capture/gpu/out-gb10/server-default.log, server-fp8.log, server-fp8.command.txt, generate.txt, fp8-generate.txt, capture/gpu/summary/gb10.json, capture/gpu/summary/l4.json, capture/gpu/out-l4/server-default.log, server-fp8.log, python/sglang/srt/arg_groups/choices.py (QUANTIZATION_CHOICES), arg_groups/fields/model.py (kv_cache_dtype, quantization_param_path), configs/model_config.py (_verify_quantization), layers/quantization/__init__.py (get_quantization_config), layers/quantization/gptq/gptq.py (override_quantization_method), layers/quantization/fp8.py, and docs/docs/advanced_features/quantization.mdx at v0.5.22; PR #32114; field reports by Cloudflare (2026-08-03), joshua8.ai (2026-01-10), and Pivot News (2026-05-19).
