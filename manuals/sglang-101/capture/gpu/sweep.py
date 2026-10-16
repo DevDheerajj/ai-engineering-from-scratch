@@ -117,6 +117,10 @@ def plan(sweep, config):
         for seed in SEEDS:
             for rate in RATES:
                 runs.append((f"r{rate}-s{seed}", [*RANDOM, "--seed", str(seed), "--request-rate", str(rate), "--num-prompts", str(max(32, int(rate * 30)))]))
+    elif sweep == "waves":
+        for seed in SEEDS:
+            for ratio in (1.0, 0.5, 0.0):
+                runs.append((f"w{ratio}-s{seed}", ["--dataset-name", "random", "--random-input-len", "512", "--random-output-len", "128", "--random-range-ratio", str(ratio), "--seed", str(seed), "--max-concurrency", "16", "--num-prompts", "64"]))
     elif sweep == "prefix":
         for seed in SEEDS:
             for prefix in PREFIXES:
@@ -127,7 +131,7 @@ def plan(sweep, config):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", required=True, choices=sorted(PROFILES))
-    parser.add_argument("--sweep", required=True, choices=["load", "rate", "prefix"])
+    parser.add_argument("--sweep", required=True, choices=["load", "rate", "prefix", "waves"])
     parser.add_argument("--configs", nargs="+", required=True)
     parser.add_argument("--port", type=int, default=30000)
     parser.add_argument("--fraction", help="override the memory fraction of the profile")

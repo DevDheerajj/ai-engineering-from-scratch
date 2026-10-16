@@ -221,7 +221,21 @@ index, temperature.gpu, power.draw [W], power.limit [W], clocks.current.sm [MHz]
 
 The GPU was at 87 C with software thermal slowdown active, and its SM clock was 360 MHz of 2040. The L4 is a 72 W card with passive cooling, and the second card in the same chassis ran other work at the same time. We had measured a hot GPU, and the server under it was not the cause.
 
-Now `capture/gpu/sweep.py` samples `nvidia-smi` once a second into a `.gpu.csv` file beside each run. Before each run it waits up to 900 s for the GPU to cool to 65 C. `capture/gpu/summarize.py` adds the median SM clock, the highest temperature, and the share of samples with a thermal slowdown bit to each point. The throttled L4 runs stay in `capture/gpu/incidents/` as evidence and appear in no chart. The GB10 load sweep in [figure 5.1c](#fig-5-1c) ran before we added the sampler, so its tight bands are the only check on it.
+Now `capture/gpu/sweep.py` samples `nvidia-smi` once a second into a `.gpu.csv` file beside each run. Before each run it waits up to 900 s for the GPU to cool below the `--cool` limit, 65 C by default. On this chassis the L4 never went below 69 C, so we ran with `--cool 72`. `capture/gpu/summarize.py` adds the median SM clock, the highest temperature, and the share of samples with a thermal slowdown bit to each point. The GB10 load sweep in [figure 5.1c](#fig-5-1c) ran before we added the sampler, so its tight bands are the only check on it.
+
+We ran the L4 sweep again with the same command and the cool-down. The throttled sweep is the rose line in the next figure.
+
+```figure
+id: fig-5-1f
+kind: chart
+title: the same server on the same L4, measured hot and measured with a cool-down
+claim: The hot sweep reported up to 39 percent less throughput than the cooled sweep, with the same command on the same card.
+caption: Blue is the sweep with a cool-down to 72 C and the clock recorded, and rose is the first sweep with no telemetry. Bands are the range of three seeds. Qwen3-8B, 512 tokens in and 128 out. From capture/gpu/summary/l4.json and capture/gpu/summary/l4-throttled.json.
+```
+
+**We measured** the difference on the L4. At a cap of 32, the cooled sweep gave 270.11 tok/s and the hot sweep gave 194.16 tok/s. At a cap of 1, the median time per token was 60.16 ms against 103.38 ms.
+
+The cooled runs are not at full speed either. Their median SM clock was 1,080 to 1,515 MHz of 2,040. At caps of 1 and 64, 41 to 49 percent of the samples still had the thermal bit set. The cool-down removes the worst error, and the recorded clock tells you how much is left.
 
 **Our position:** a benchmark without the clock and the temperature of each run is not evidence. Read the clock first, then the throughput.
 

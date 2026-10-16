@@ -81,6 +81,10 @@ EXPERIMENTS = [
         random_load("eagle3-bench-random-c32", 32, 128),
         ("metrics", None),
     ]},
+    {"name": "eagle3-no-env", "model": MODEL, "flags": EAGLE, "expect_start_failure": True, "clients": []},
+    {"name": "idle-probe", "model": MODEL, "flags": [], "clients": [
+        ("ttft-idle", [PYTHON, str(HERE / "ttft_idle_probe.py")]),
+    ]},
     {"name": "deterministic", "model": MODEL, "flags": ["--enable-deterministic-inference"], "clients": [
         ("determinism", [PYTHON, str(HERE / "determinism_probe.py"), "5"]),
         random_load("deterministic-bench-random-c8", 8, 64),
@@ -299,6 +303,14 @@ def record(only=None):
             continue
         name = experiment["name"]
         env = experiment.get("env", {})
+        if experiment.get("expect_start_failure"):
+            try:
+                process, command = start_server(name, experiment["model"], experiment["flags"], OUT / f"server-{name}.log", env)
+            except RuntimeError as error:
+                print(f"[{name}] refused to start as expected: {error}", flush=True)
+                continue
+            stop_server(process)
+            raise RuntimeError(f"{name}: the server started, but this configuration is expected to fail at startup")
         process, command = start_server(name, experiment["model"], experiment["flags"], OUT / f"server-{name}.log", env)
         (OUT / f"server-{name}.command.txt").write_text(" ".join([*(f"{k}={v}" for k, v in env.items()), "sglang", *command[1:]]) + "\n")
         try:
