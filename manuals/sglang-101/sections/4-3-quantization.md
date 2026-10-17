@@ -105,7 +105,7 @@ The GB10 has 121.7 GiB of memory, so its BF16 pool never ran short. We wanted to
 
 ```listing
 title: the BF16 server on the L4
-source: capture/gpu/out-l4/server-default.log
+source: capture/gpu/out-l4/server-load-default.log
 lang: text
 note: Two lines from the startup log. Timestamps are cut.
 ---
@@ -115,7 +115,7 @@ note: Two lines from the startup log. Timestamps are cut.
 
 ```listing
 title: the FP8 server on the L4
-source: capture/gpu/out-l4/server-fp8.log
+source: capture/gpu/out-l4/server-load-fp8.log
 lang: text
 note: Two lines from the startup log. Timestamps are cut.
 ---
@@ -172,4 +172,4 @@ Quantize per phase when you run prefill and decode on separate servers. Smaller 
 - Read the KV Cache is allocated line to see the pool size each choice buys.
 ```
 
-Sources: capture/gpu/out-gb10/server-default.log, server-fp8.log, server-fp8.command.txt, generate.txt, fp8-generate.txt, capture/gpu/summary/gb10.json, capture/gpu/summary/l4.json, capture/gpu/out-l4/server-default.log, server-fp8.log, python/sglang/srt/arg_groups/choices.py (QUANTIZATION_CHOICES), arg_groups/fields/model.py (kv_cache_dtype, quantization_param_path), configs/model_config.py (_verify_quantization), layers/quantization/__init__.py (get_quantization_config), layers/quantization/gptq/gptq.py (override_quantization_method), layers/quantization/fp8.py, and docs/docs/advanced_features/quantization.mdx at v0.5.22; PR #32114; field reports by Cloudflare (2026-08-03), joshua8.ai (2026-01-10), and Pivot News (2026-05-19).
+Sources: capture/gpu/out-gb10/server-default.log, server-fp8.log, server-fp8.command.txt, generate.txt, fp8-generate.txt, capture/gpu/summary/gb10.json, capture/gpu/summary/l4.json, capture/gpu/out-l4/server-load-default.log, server-load-fp8.log, python/sglang/srt/arg_groups/choices.py (QUANTIZATION_CHOICES), arg_groups/fields/model.py (kv_cache_dtype, quantization_param_path), configs/model_config.py (_verify_quantization), layers/quantization/__init__.py (get_quantization_config), layers/quantization/gptq/gptq.py (override_quantization_method), layers/quantization/fp8.py, and docs/docs/advanced_features/quantization.mdx at v0.5.22; PR #32114; field reports by Cloudflare (2026-08-03), joshua8.ai (2026-01-10), and Pivot News (2026-05-19).
