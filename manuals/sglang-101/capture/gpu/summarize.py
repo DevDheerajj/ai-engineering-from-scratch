@@ -93,6 +93,8 @@ def summarize(profile):
                     "p99_ttft_ms": spread([r["p99_ttft_ms"] for r in rows]),
                     "median_tpot_ms": spread([r["median_tpot_ms"] for r in rows]),
                     "p99_tpot_ms": spread([r["p99_tpot_ms"] for r in rows]),
+                    "p99_itl_ms": spread([r["p99_itl_ms"] for r in rows]),
+                    "median_itl_ms": spread([r["median_itl_ms"] for r in rows]),
                     "goodput_rps": spread([goodput(r) for r in rows]),
                     "request_throughput": spread([r["request_throughput"] for r in rows]),
                     "completed": [r["completed"] for r in rows],

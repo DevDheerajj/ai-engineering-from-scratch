@@ -20,6 +20,8 @@ PROFILES = {
 CONCURRENCY = [1, 2, 4, 8, 16, 32, 64]
 RATES = [0.5, 1, 2, 4, 8, 16]
 PREFIXES = [0, 256, 1024, 2048, 4096]
+GROUPS = [4, 16, 32, 64]
+MIXED_RATES = [0.5, 1, 2]
 SEEDS = [1, 2, 3]
 RANDOM = ["--dataset-name", "random", "--random-input-len", "512", "--random-output-len", "128", "--random-range-ratio", "1.0"]
 
@@ -33,6 +35,10 @@ def configs(profile):
         "eagle3": (p["model"], eagle, {"SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN": "1"}),
         "no-cuda-graph": (p["model"], ["--cuda-graph-backend-decode", "disabled", "--cuda-graph-backend-prefill", "disabled"]),
         "no-radix-cache": (p["model"], ["--disable-radix-cache"]),
+        "triton": (p["model"], ["--attention-backend", "triton"]),
+        "hicache": (p["model"], ["--enable-hierarchical-cache", "--hicache-ratio", "4"]),
+        "chunk-1024": (p["model"], ["--chunked-prefill-size", "1024"]),
+        "chunk-8192": (p["model"], ["--chunked-prefill-size", "8192"]),
     }
 
 
@@ -127,13 +133,21 @@ def plan(sweep, config):
         for seed in SEEDS:
             for prefix in PREFIXES:
                 runs.append((f"p{prefix}-s{seed}", ["--dataset-name", "generated-shared-prefix", "--gsp-num-groups", "4", "--gsp-prompts-per-group", "16", "--gsp-system-prompt-len", str(max(prefix, 1)), "--gsp-question-len", "128", "--gsp-output-len", "64", "--gsp-range-ratio", "1.0", "--max-concurrency", "8", "--seed", str(seed)]))
+    elif sweep == "working-set":
+        for seed in SEEDS:
+            for groups in GROUPS:
+                runs.append((f"g{groups}-s{seed}", ["--dataset-name", "generated-shared-prefix", "--gsp-num-groups", str(groups), "--gsp-prompts-per-group", "8", "--gsp-system-prompt-len", "2048", "--gsp-question-len", "64", "--gsp-output-len", "32", "--gsp-range-ratio", "1.0", "--max-concurrency", "8", "--seed", str(seed)]))
+    elif sweep == "mixed":
+        for seed in SEEDS:
+            for rate in MIXED_RATES:
+                runs.append((f"m{rate}-s{seed}", ["--dataset-name", "random", "--random-input-len", "4096", "--random-output-len", "256", "--random-range-ratio", "0.25", "--seed", str(seed), "--request-rate", str(rate), "--num-prompts", "48"]))
     return runs
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", required=True, choices=sorted(PROFILES))
-    parser.add_argument("--sweep", required=True, choices=["load", "rate", "prefix", "waves"])
+    parser.add_argument("--sweep", required=True, choices=["load", "rate", "prefix", "waves", "working-set", "mixed"])
     parser.add_argument("--configs", nargs="+", required=True)
     parser.add_argument("--port", type=int, default=30000)
     parser.add_argument("--fraction", help="override the memory fraction of the profile")
