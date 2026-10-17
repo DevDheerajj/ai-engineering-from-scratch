@@ -176,6 +176,43 @@ EAGLE-3 had the slowest median, 579.3 ms, and the shortest tail, 1,007.4 ms at P
 
 **Our reading of the two groups:** the workload made them. Every request asked for exactly 128 tokens, because `--random-range-ratio 1.0` fixes the length. Requests that start together therefore finish together, and their replacements arrive together. Each wave then queues for prefill behind the requests ahead of it. Real traffic has mixed lengths. If you test with fixed lengths, read P90 as the cost of a burst, not as the cost of a normal request.
 
+### We tested the waves on an L4
+
+A reading is a hypothesis until you change the variable it blames. We ran Qwen3-8B on one L4 with a cap of 16 and 64 prompts, three seeds per point. Only `--random-range-ratio` changed, from 1.0 to 0.5 to 0.0.
+
+```listing
+title: one wave on the L4 with fixed lengths
+source: capture/gpu/out-l4/server-waves-default.log
+lang: text
+note: Five consecutive lines from a run at a ratio of 1.0. Timestamps are kept, because the timing is the point.
+---
+[2026-10-17 15:54:33] Prefill batch, #new-seq: 8, #new-token: 4096, #cached-token: 1, token usage: 0.34, #running-req: 1, #queue-req: 0, #pending-token: 513, cuda graph: True, input throughput (token/s): 3509.80
+[2026-10-17 15:54:34] Prefill batch, #new-seq: 8, #new-token: 3583, #cached-token: 0, token usage: 0.34, #running-req: 8, #queue-req: 0, #pending-token: 0, cuda graph: True, input throughput (token/s): 3503.78
+[2026-10-17 15:54:35] Decode batch, #running-req: 16, #token: 8240, token usage: 0.34, cuda graph: True, gen throughput (token/s): 2.62, #queue-req: 0
+[2026-10-17 15:54:37] Decode batch, #running-req: 16, #token: 8880, token usage: 0.37, cuda graph: True, gen throughput (token/s): 231.07, #queue-req: 0
+[2026-10-17 15:54:40] Decode batch, #running-req: 16, #token: 9520, token usage: 0.40, cuda graph: True, gen throughput (token/s): 229.85, #queue-req: 0
+```
+
+The wave is in the log. Only one request was running, so fifteen had just finished together, and their replacements arrived together. The scheduler prefilled them as two chunks of up to 4,096 tokens, and then all 16 decoded together.
+
+```figure
+id: fig-5-1h
+kind: chart
+title: Fixed lengths trade a slow first token for smooth decoding
+claim: With fixed lengths the median TTFT was 1,996 ms and P99 ITL 82 ms, and with mixed lengths they were 291 ms and 300 ms.
+caption: Solid lines are median TTFT and dashed lines are P99 inter-token latency, three seeds per point, on a log scale. Plum is BF16 and green is FP8 with an FP8 KV cache. From capture/gpu/summary/l4.json.
+```
+
+| Ratio | BF16 median TTFT | BF16 P99 ITL | FP8 median TTFT | FP8 P99 ITL |
+|---|---|---|---|---|
+| 1.0 | 1,996 ms | 82 ms | 1,526 ms | 55 ms |
+| 0.5 | 364 ms | 396 ms | 130 ms | 95 ms |
+| 0.0 | 291 ms | 300 ms | 129 ms | 95 ms |
+
+**We measured** a first token 6.9 times slower with fixed lengths on BF16, and 11.8 times slower on FP8. Mixed lengths sent fewer tokens, 17,870 input tokens against 32,768 in seed 1, so part of the gap is less work. Less work does not explain the other half of the result. With mixed lengths, P99 ITL rose from 82 to 300 ms. New prompts arrived one by one, and each prefill stopped the running decodes. With fixed lengths, prefill happened only between waves.
+
+The two settings measure two different servers. Fixed lengths measure bursts: a slow first token and smooth tokens after it. Mixed lengths measure steady traffic: a fast first token and stalls in the stream. Keep `--random-range-ratio 1.0` when you compare two builds, because it repeats exactly. Before you set a latency target from it, run your real length distribution too.
+
 ## Goodput finds the knee that throughput hides
 
 On the GB10, BF16 throughput still rises at a cap of 64, because the KV pool holds 234,600 tokens. A throughput curve with no knee does not tell you where to stop. A latency target does.
@@ -266,6 +303,7 @@ Then enforce the knee outside the engine. The engine's own limit is set from mem
 ```takeaways
 - Run `python -m sglang.benchmark.serving`, never a hand-written timing loop.
 - Pass `--random-range-ratio 1.0` or state the length distribution you used.
+- Test your real length mix before you set a latency target, because fixed lengths form waves.
 - Sweep at least three concurrency caps and plot throughput against median TTFT.
 - Report throughput only together with p50 and p99 TTFT and TPOT at the same cap.
 - Read Concurrency as an achieved average and Peak concurrent requests as a per-second count.
@@ -275,4 +313,4 @@ Then enforce the knee outside the engine. The engine's own limit is set from mem
 - Record the SM clock and the temperature with every run, and drop throttled runs.
 ```
 
-Sources: python/sglang/benchmark/serving.py (calculate_metrics, argument defaults), python/sglang/benchmark/datasets/common.py (compute_random_lens), python/sglang/bench_serving.py, PR #40795, all at v0.5.22 (baa9befa); capture/out/serve-help.txt, capture/out/server-default.command.txt, capture/out/server-default.log, capture/out/bench-random-c1.txt, capture/out/bench-random-c8.txt, capture/out/bench-random-c32.txt; capture/gpu/sweep.py, capture/gpu/summarize.py, capture/gpu/summary/gb10.json, capture/gpu/summary/l4.json, capture/gpu/out-gb10/server-default.command.txt, capture/gpu/out-gb10/bench-random-c8.txt, capture/gpu/out-gb10/bench-random-c32.txt, capture/gpu/incidents/l4-thermal-throttle.txt; issue #3196.
+Sources: python/sglang/benchmark/serving.py (calculate_metrics, argument defaults), python/sglang/benchmark/datasets/common.py (compute_random_lens), python/sglang/bench_serving.py, PR #40795, all at v0.5.22 (baa9befa); capture/out/serve-help.txt, capture/out/server-default.command.txt, capture/out/server-default.log, capture/out/bench-random-c1.txt, capture/out/bench-random-c8.txt, capture/out/bench-random-c32.txt; capture/gpu/sweep.py, capture/gpu/summarize.py, capture/gpu/summary/gb10.json, capture/gpu/summary/l4.json, capture/gpu/out-gb10/server-default.command.txt, capture/gpu/out-gb10/bench-random-c8.txt, capture/gpu/out-gb10/bench-random-c32.txt, capture/gpu/incidents/l4-thermal-throttle.txt; issue #3196. capture/gpu/out-l4/server-waves-default.log.
