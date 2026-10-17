@@ -205,6 +205,20 @@ caption: Dashed lines are requests completed per second. Solid lines are request
 
 At 16 per second, BF16 completed 3.88 requests per second, and its P99 first token took 55,640.4 ms. FP8 completed 8.26. The GPU clock stayed at 2,496 MHz up to 4 requests per second. At 16, the GPU reached 89 C and spent 7.3 percent of the samples in thermal slowdown. The last BF16 point measures a hot GPU as well as a full queue.
 
+We ran the same open loop on one 24 GB L4 with Qwen3-8B, with the cool-down to 72°C before each run.
+
+```figure
+id: fig-5-1g
+kind: chart
+title: the same open loop on a 24 GB L4
+claim: On the L4, FP8 served 3.18 requests per second within the target at 4 offered, and BF16 served none within the target from 4 offered.
+caption: Dashed lines are requests completed per second. Solid lines are requests that met the target, with the range of three seeds as a band. Green is FP8 with an FP8 KV cache, plum is BF16. From capture/gpu/summary/l4.json, the rate sweep.
+```
+
+**We measured** a different shape on the smaller card. Both servers met the target for every request up to 1 per second. BF16 held 0.88 within the target at 2 offered and none from 4. FP8 held 3.18 within the target at 4 offered, three times the best BF16 point.
+
+Past its peak, BF16 completed fewer requests as we offered more: 2.01 per second at 4 offered, 1.91 at 8, and 1.62 at 16. The telemetry shows why. The median SM clock fell from 1,320 MHz at 4 offered to 465 MHz at 16. At 16, 70 percent of the samples showed thermal slowdown. On a passively cooled card, overload costs throughput as well as latency.
+
 ## Record the GPU clock with every run
 
 Our first sweep on an NVIDIA L4 reported that CUDA graphs did nothing. The median time per token at a cap of 1 was 103.4 ms with graphs and 103.4 ms without. The three seeds at that cap gave from 10.0 to 14.9 tok/s, a spread of half the median. Then we read `nvidia-smi` during the sweep.
@@ -261,4 +275,4 @@ Then enforce the knee outside the engine. The engine's own limit is set from mem
 - Record the SM clock and the temperature with every run, and drop throttled runs.
 ```
 
-Sources: python/sglang/benchmark/serving.py (calculate_metrics, argument defaults), python/sglang/benchmark/datasets/common.py (compute_random_lens), python/sglang/bench_serving.py, PR #40795, all at v0.5.22 (baa9befa); capture/out/serve-help.txt, capture/out/server-default.command.txt, capture/out/server-default.log, capture/out/bench-random-c1.txt, capture/out/bench-random-c8.txt, capture/out/bench-random-c32.txt; capture/gpu/sweep.py, capture/gpu/summarize.py, capture/gpu/summary/gb10.json, capture/gpu/out-gb10/server-default.command.txt, capture/gpu/out-gb10/bench-random-c8.txt, capture/gpu/out-gb10/bench-random-c32.txt, capture/gpu/incidents/l4-thermal-throttle.txt; issue #3196.
+Sources: python/sglang/benchmark/serving.py (calculate_metrics, argument defaults), python/sglang/benchmark/datasets/common.py (compute_random_lens), python/sglang/bench_serving.py, PR #40795, all at v0.5.22 (baa9befa); capture/out/serve-help.txt, capture/out/server-default.command.txt, capture/out/server-default.log, capture/out/bench-random-c1.txt, capture/out/bench-random-c8.txt, capture/out/bench-random-c32.txt; capture/gpu/sweep.py, capture/gpu/summarize.py, capture/gpu/summary/gb10.json, capture/gpu/summary/l4.json, capture/gpu/out-gb10/server-default.command.txt, capture/gpu/out-gb10/bench-random-c8.txt, capture/gpu/out-gb10/bench-random-c32.txt, capture/gpu/incidents/l4-thermal-throttle.txt; issue #3196.
