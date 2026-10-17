@@ -211,6 +211,8 @@ caption: Solid lines are median TTFT and dashed lines are P99 inter-token latenc
 
 **We measured** a first token 6.9 times slower with fixed lengths on BF16, and 11.8 times slower on FP8. Mixed lengths sent fewer tokens, 17,870 input tokens against 32,768 in seed 1, so part of the gap is less work. Less work does not explain the other half of the result. With mixed lengths, P99 ITL rose from 82 to 300 ms. New prompts arrived one by one, and each prefill stopped the running decodes. With fixed lengths, prefill happened only between waves.
 
+The GB10 gave the same shape with Qwen3-30B-A3B, three seeds per point. With fixed lengths, the BF16 median TTFT was 1,650 ms and P99 ITL 169 ms. With mixed lengths, they were 320 ms and 230 ms. FP8 went from 1,050 ms and 92 ms to 188 ms and 127 ms. Two GPUs and two models show the same trade, so it comes from the workload, not from the hardware.
+
 The two settings measure two different servers. Fixed lengths measure bursts: a slow first token and smooth tokens after it. Mixed lengths measure steady traffic: a fast first token and stalls in the stream. Keep `--random-range-ratio 1.0` when you compare two builds, because it repeats exactly. Before you set a latency target from it, run your real length distribution too.
 
 ## Goodput finds the knee that throughput hides
