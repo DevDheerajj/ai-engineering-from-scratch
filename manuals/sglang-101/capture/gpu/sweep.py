@@ -15,8 +15,9 @@ HERE = Path(__file__).resolve().parent
 PYTHON = sys.executable
 PROFILES = {
     "gb10": {"model": "Qwen/Qwen3-30B-A3B-Instruct-2507", "fp8": "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8", "draft": "lmsys/SGLang-EAGLE3-Qwen3-30B-A3B-Instruct-2507-SpecForge-Nex", "fraction": "0.7"},
-    "l4": {"model": "Qwen/Qwen3-8B", "fp8": "Qwen/Qwen3-8B-FP8", "draft": "Tengyunw/qwen3_8b_eagle3", "fraction": "0.85"},
+    "l4": {"model": "Qwen/Qwen3-8B", "fp8": "Qwen/Qwen3-8B-FP8", "draft": "Tengyunw/qwen3_8b_eagle3", "fraction": "0.85", "moe_fp8": "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8"},
 }
+PROFILES["l4-gpu1"] = PROFILES["l4"]
 CONCURRENCY = [1, 2, 4, 8, 16, 32, 64]
 RATES = [0.5, 1, 2, 4, 8, 16]
 PREFIXES = [0, 256, 1024, 2048, 4096]
@@ -39,6 +40,11 @@ def configs(profile):
         "hicache": (p["model"], ["--enable-hierarchical-cache", "--hicache-ratio", "4"]),
         "chunk-1024": (p["model"], ["--chunked-prefill-size", "1024"]),
         "chunk-8192": (p["model"], ["--chunked-prefill-size", "8192"]),
+        "tp2": (p["model"], ["--tp-size", "2"]),
+        "dp2": (p["model"], ["--dp-size", "2"]),
+        "pd": (p["model"], []),
+        "vllm": (p["model"], []),
+        "moe-tp2": (p.get("moe_fp8", p["fp8"]), ["--tp-size", "2", "--kv-cache-dtype", "fp8_e4m3"]),
     }
 
 
@@ -66,7 +72,70 @@ def start_server(model, flags, port, fraction, log_path, env=None):
     raise RuntimeError(f"server did not become healthy, see {log_path}")
 
 
+class Group:
+    def __init__(self, processes):
+        self.processes = processes
+        self.args = processes[0].args
+
+    def poll(self):
+        for process in self.processes:
+            if process.poll() is not None:
+                return process.returncode
+        return None
+
+
+def launch(command, log_path, env):
+    return subprocess.Popen(command, stdout=open(log_path, "w"), stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env={**os.environ, **env}, start_new_session=True)
+
+
+def wait_healthy(ports, processes, log_dir):
+    deadline = time.time() + 1800
+    while time.time() < deadline:
+        for process in processes:
+            if process.poll() is not None:
+                raise RuntimeError(f"a process exited with {process.returncode}, see {log_dir}")
+        if all(healthy(port) for port in ports):
+            return
+        time.sleep(2)
+    raise RuntimeError(f"servers did not become healthy, see {log_dir}")
+
+
+def start_pd(model, port, fraction, directory):
+    sglang = shutil.which("sglang") or "sglang"
+    prefill_port, decode_port, bootstrap = port + 10, port + 20, 8998
+    common = [sglang, "serve", "--model-path", model, "--host", "127.0.0.1", "--enable-cache-report", "--enable-metrics", "--mem-fraction-static", fraction, "--disaggregation-transfer-backend", "mooncake_tcp"]
+    first, second = gpu_index().split(",")[:2]
+    prefill = launch([*common, "--port", str(prefill_port), "--disaggregation-mode", "prefill", "--disaggregation-bootstrap-port", str(bootstrap)], directory / "server-prefill.log", {"CUDA_VISIBLE_DEVICES": first})
+    decode = launch([*common, "--port", str(decode_port), "--disaggregation-mode", "decode"], directory / "server-decode.log", {"CUDA_VISIBLE_DEVICES": second})
+    group = Group([prefill, decode])
+    try:
+        wait_healthy([prefill_port, decode_port], group.processes, directory)
+        router = launch([PYTHON, "-m", "sglang_router.launch_router", "--pd-disaggregation", "--prefill", f"http://127.0.0.1:{prefill_port}", str(bootstrap), "--decode", f"http://127.0.0.1:{decode_port}", "--host", "127.0.0.1", "--port", str(port)], directory / "router.log", {})
+        group = Group([router, prefill, decode])
+        wait_healthy([port], group.processes, directory)
+    except RuntimeError:
+        stop_server(group, port)
+        raise
+    return group
+
+
+def start_vllm(model, port, directory):
+    vllm = os.environ.get("VLLM_BIN", "vllm")
+    blocks = os.environ.get("VLLM_GPU_BLOCKS", "1506")
+    process = launch([vllm, "serve", model, "--host", "127.0.0.1", "--port", str(port), "--num-gpu-blocks-override", blocks, "--gpu-memory-utilization", "0.9", "--seed", "0"], directory / "server.log", {})
+    try:
+        wait_healthy([port], [process], directory)
+    except RuntimeError:
+        stop_server(process, port)
+        raise
+    return process
+
+
 def stop_server(process, port):
+    if isinstance(process, Group):
+        for member in process.processes:
+            stop_server(member, port)
+        return
     try:
         os.killpg(process.pid, signal.SIGTERM)
         process.wait(timeout=60)
@@ -80,8 +149,8 @@ def stop_server(process, port):
         time.sleep(1)
 
 
-def bench(port, output, args, dataset):
-    command = [PYTHON, "-m", "sglang.benchmark.serving", "--backend", "sglang", "--port", str(port), "--output-file", str(output), "--output-details", *with_dataset(args, dataset)]
+def bench(port, output, args, dataset, backend="sglang"):
+    command = [PYTHON, "-m", "sglang.benchmark.serving", "--backend", backend, "--port", str(port), "--output-file", str(output), "--output-details", *with_dataset(args, dataset)]
     result = subprocess.run(command, capture_output=True, text=True, timeout=7200, stdin=subprocess.DEVNULL)
     output.with_suffix(".txt").write_text((result.stdout + result.stderr).replace(str(Path.home()), "~"))
     if result.returncode != 0:
@@ -89,13 +158,13 @@ def bench(port, output, args, dataset):
 
 
 def gpu_index():
-    return os.environ.get("CUDA_VISIBLE_DEVICES", "0").split(",")[0]
+    return os.environ.get("CUDA_VISIBLE_DEVICES", "0")
 
 
 def temperature(index):
     result = subprocess.run(["nvidia-smi", "-i", index, "--query-gpu=temperature.gpu", "--format=csv,noheader,nounits"], capture_output=True, text=True)
     try:
-        return int(result.stdout.strip())
+        return max(int(line) for line in result.stdout.split())
     except ValueError:
         return None
 
@@ -172,15 +241,21 @@ def main():
         if not pending:
             print(f"[{name}] complete", flush=True)
             continue
-        process = start_server(model, flags, args.port, args.fraction or PROFILES[args.profile]["fraction"], directory / "server.log", env)
-        (directory / "server.command.txt").write_text(" ".join([*(f"{k}={v}" for k, v in env.items()), "sglang", *process.args[1:]]) + "\n")
+        fraction = args.fraction or PROFILES[args.profile]["fraction"]
+        if name == "pd":
+            process = start_pd(model, args.port, fraction, directory)
+        elif name == "vllm":
+            process = start_vllm(model, args.port, directory)
+        else:
+            process = start_server(model, flags, args.port, fraction, directory / "server.log", env)
+        (directory / "server.command.txt").write_text(" ".join([*(f"{k}={v}" for k, v in env.items()), os.path.basename(process.args[0]), *process.args[1:]]) + "\n")
         try:
             for run, bench_args in pending:
                 start_temp, waited = wait_cool(gpu_index(), args.cool)
                 print(f"[{name}] {run} start {start_temp} C after {waited} s", flush=True)
                 sampler = telemetry(gpu_index(), directory / f"{run}.gpu.csv")
                 try:
-                    bench(args.port, directory / f"{run}.jsonl", bench_args, dataset)
+                    bench(args.port, directory / f"{run}.jsonl", bench_args, dataset, "vllm" if name == "vllm" else "sglang")
                 finally:
                     sampler.terminate()
                     sampler.wait()
