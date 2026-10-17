@@ -150,9 +150,26 @@ ValueError: Specified `attn_implementation="triton"` is not supported. The only 
 
 The flag value came from the wrong example. In the FSDP actor, the SGLang Triton attention bridge turns on only when `torch.version.hip` is set, which means AMD GPUs {{code}}. On an NVIDIA GPU the value goes straight to transformers, which has no attention named `triton`.
 
-The only true on-policy contract in Miles pairs the SGLang `fa3` backend with `flash_attention_3` in FSDP {{code}}. In this image, the FlashAttention 3 package imports, but `sgl_kernel` reports `Can not import FA3 in sgl_kernel`. So the SGLang side of the contract is missing on this GPU and this build. We queued a run with the contract flags to record where it stops.
+The only true on-policy contract in Miles pairs the SGLang `fa3` backend with `flash_attention_3` in FSDP {{code}}. In this image, the FlashAttention 3 package imports, but `sgl_kernel` reports `Can not import FA3 in sgl_kernel`. We ran the job again with the contract flags to see where it stops.
 
-**Our position on the GB10 result:** before you plan a true on-policy run, check that your GPU and image have both kernels of the contract. At v0.1.2, that contract means FlashAttention 3 on both sides, a path written for Hopper GPUs.
+```listing
+title: the contract flags on a GB10
+source: capture/gpu/out-miles/true-on-policy-fa3-error.log
+lang: text
+note: The SGLang start, its failure, and the first and last of the rollout errors that followed. Process prefixes are cut.
+---
+[2026-10-17 21:03:03] Enable deterministic inference because of legacy rl_on_policy_target.
+AssertionError: FlashAttention v3 Backend requires SM>=80 and SM<=90. Please use `--attention-backend flashinfer`.
+[2026-10-17 21:03:24] Received sigquit from a child process. It usually means the child failed.
+[2026-10-17 21:03:30.637 rollout_executor] http_utils.py:241 - Error: Server error '503 Service Unavailable' for url 'http://172.17.0.3:20035/generate'
+[2026-10-17 22:06:46.137 rollout_executor] http_utils.py:241 - Error: Server error '503 Service Unavailable' for url 'http://172.17.0.3:20035/generate'
+```
+
+SGLang stopped 21 seconds after it started. Its FA3 backend accepts GPUs from SM 8.0 to SM 9.0, and the GB10 is SM 12.1. So on a GB10, true on-policy at v0.1.2 cannot start, whatever flags you pass.
+
+What happened next is the part to remember. The rollout engine was gone, but the Miles job did not stop. Its rollout loop kept sending requests to the router, which answered `503 Service Unavailable`. The log holds 199,685 of those errors over 63 minutes, until we stopped the container. The job never reported a failure, and the GPU sat idle the whole time.
+
+**Our position on the GB10 result:** before you plan a true on-policy run, check that your GPU and image have both kernels of the contract. Then watch the SGLang server log, not only the trainer, because a dead rollout engine can look like a slow one. At v0.1.2, that contract means FlashAttention 3 on both sides, a path written for Hopper GPUs.
 
 ## Miles runs on its own SGLang
 
@@ -173,6 +190,7 @@ That branch is a fair summary of this section. RL asks a serving engine for thin
 - Set `SGLANG_RETURN_ORIGINAL_LOGPROB` when your trainer compares at temperature 1.
 - Treat true on-policy as a Qwen3 dense diagnostic at v0.1.2.
 - Check that your GPU and image have both kernels of the true on-policy contract.
+- Alert on the rollout server's own errors, because the trainer can keep waiting on a dead engine.
 ```
 
-Sources: Miles at v0.1.2 (a22fd824): train.py, release-lock.json, docker/Dockerfile, docs/developer/versions.md, miles/ray/rollout/inference_controller.py, miles/backends/training_utils/weight_update/protocol.py, session.py, protocols/broadcast.py, protocols/cuda_ipc.py, protocols/p2p.py, protocols/delta.py, miles/true_on_policy/model_profiles.py, docs/advanced/p2p-weight-transfer.md; SGLang at v0.5.22: python/sglang/srt/entrypoints/http_server.py, python/sglang/srt/managers/io_struct.py (PauseGenerationReqInput), python/sglang/srt/managers/scheduler_components/weight_updater.py, python/sglang/srt/constants.py, python/sglang/srt/arg_groups/fields/exec_.py, python/sglang/srt/arg_groups/choices.py, python/sglang/srt/arg_groups/attention_hook.py, python/sglang/srt/layers/logprob_processor.py, docs/docs/advanced_features/sglang_for_rl.mdx; Miles issues #860, #1485, #3277, #3714; RadixArk and LMSYS posts: lmsys.org/blog/2025-11-19-miles and lmsys.org/blog/2026-08-18-miles-v0-1. Miles at 08752a12: miles/backends/fsdp_utils/actor.py, miles/true_on_policy/schema.py, examples/infra_features/true_on_policy/run_simple.py and run_simple_amd_triton.py. capture/gpu/miles_grpo.py, capture/gpu/miles_summary.py, capture/gpu/out-miles/plain-excerpt.log, capture/gpu/out-miles/true-on-policy-error.log, capture/gpu/summary/miles-gb10.json.
+Sources: Miles at v0.1.2 (a22fd824): train.py, release-lock.json, docker/Dockerfile, docs/developer/versions.md, miles/ray/rollout/inference_controller.py, miles/backends/training_utils/weight_update/protocol.py, session.py, protocols/broadcast.py, protocols/cuda_ipc.py, protocols/p2p.py, protocols/delta.py, miles/true_on_policy/model_profiles.py, docs/advanced/p2p-weight-transfer.md; SGLang at v0.5.22: python/sglang/srt/entrypoints/http_server.py, python/sglang/srt/managers/io_struct.py (PauseGenerationReqInput), python/sglang/srt/managers/scheduler_components/weight_updater.py, python/sglang/srt/constants.py, python/sglang/srt/arg_groups/fields/exec_.py, python/sglang/srt/arg_groups/choices.py, python/sglang/srt/arg_groups/attention_hook.py, python/sglang/srt/layers/logprob_processor.py, docs/docs/advanced_features/sglang_for_rl.mdx; Miles issues #860, #1485, #3277, #3714; RadixArk and LMSYS posts: lmsys.org/blog/2025-11-19-miles and lmsys.org/blog/2026-08-18-miles-v0-1. Miles at 08752a12: miles/backends/fsdp_utils/actor.py, miles/true_on_policy/schema.py, examples/infra_features/true_on_policy/run_simple.py and run_simple_amd_triton.py. capture/gpu/miles_grpo.py, capture/gpu/miles_summary.py, capture/gpu/out-miles/plain-excerpt.log, capture/gpu/out-miles/true-on-policy-error.log, capture/gpu/summary/miles-gb10.json. capture/gpu/out-miles/true-on-policy-fa3-error.log.
