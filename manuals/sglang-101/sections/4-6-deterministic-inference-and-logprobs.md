@@ -88,7 +88,7 @@ Our probe sends one prompt at temperature 0 with 128 new tokens. It sends the pr
 
 **We measured** two different answers from the default server. The first request alone and all five batched requests wrote one text. The next four requests alone wrote another text, which left the first after 238 characters. Nothing in the request changed between those runs.
 
-Our reading is that the first request computed its prompt from nothing. The four later ones found that prompt in the radix cache and ran a different prefill path. The `radix_cache` mode of the test above checks that case. We saw the same two-of-five pattern on a second GPU model, an L4.
+Our reading is that the first request computed its prompt from nothing. The four later ones found that prompt in the radix cache and ran a different prefill path. The `radix_cache` mode of the test above checks that case. On an L4 with `Qwen/Qwen3-8B`, the four later requests alone also matched each other and not the first. The batched requests there wrote two more texts, so the default server gave four different answers to one prompt. With the flag on, all ten matched on the L4 too.
 
 With the flag on, all ten requests wrote the same text. The startup log shows the switches from the list above:
 
@@ -103,7 +103,7 @@ note: Three lines from the startup log. Timestamps and the end of the second lin
 … Currently radix cache is not compatible with flashinfer attention backend for deterministic inference. It will be supported in the future.
 ```
 
-The price at concurrency 8 was 12 percent of the throughput. Output fell from 73.11 to 64.24 tok/s, and the median time per token rose from 104.45 to 119.38 ms. The radix cache was off, so a workload with shared prefixes pays more than this test shows.
+The price at concurrency 8 was 18 percent of the throughput. Output fell from 78.92 to 64.83 tok/s, and the median time per token rose from 97.30 to 117.43 ms. The radix cache was off, so a workload with shared prefixes pays more than this test shows.
 
 ## Our position
 
@@ -127,4 +127,4 @@ Set `sampling_seed` on each request that must reproduce. Seed 42 for everyone ma
 - Pass --mlx-enable-sampling on Apple silicon when requests need temperature or logprobs.
 ```
 
-Sources: capture/gpu/out-gb10/determinism.txt, deterministic-determinism.txt, server-deterministic.log, bench-random-c8.txt, deterministic-bench-random-c8.txt, capture/gpu/determinism_probe.py, python/sglang/srt/batch_invariant_ops/batch_invariant_ops.py (enable_batch_invariant_mode), arg_groups/attention_hook.py (handle_deterministic_inference), arg_groups/choices.py (DETERMINISTIC_ATTENTION_BACKEND_CHOICES, RADIX_SUPPORTED_DETERMINISTIC_ATTENTION_BACKEND), sampling/sampling_batch_info.py, layers/sampler.py, and python/sglang/test/test_deterministic.py at v0.5.22; capture/out/serve-help.txt; issues #43055, #43413, #36174, #31261, and #39597; Thinking Machines, Defeating Nondeterminism in LLM Inference (2025-09).
+Sources: capture/gpu/out-gb10/determinism.txt, deterministic-determinism.txt, server-deterministic.log, bench-random-c8.txt, deterministic-bench-random-c8.txt, capture/gpu/out-l4/determinism.txt, deterministic-determinism.txt, capture/gpu/determinism_probe.py, python/sglang/srt/batch_invariant_ops/batch_invariant_ops.py (enable_batch_invariant_mode), arg_groups/attention_hook.py (handle_deterministic_inference), arg_groups/choices.py (DETERMINISTIC_ATTENTION_BACKEND_CHOICES, RADIX_SUPPORTED_DETERMINISTIC_ATTENTION_BACKEND), sampling/sampling_batch_info.py, layers/sampler.py, and python/sglang/test/test_deterministic.py at v0.5.22; capture/out/serve-help.txt; issues #43055, #43413, #36174, #31261, and #39597; Thinking Machines, Defeating Nondeterminism in LLM Inference (2025-09).

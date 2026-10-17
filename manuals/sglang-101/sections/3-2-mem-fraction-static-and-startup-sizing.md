@@ -91,7 +91,7 @@ note: Lines cut from the startup of the default GPU configuration, Qwen3-30B-A3B
 
 The first line is the capacity. `nvidia-smi` reports no memory size for the GB10, so SGLang takes the total from PyTorch.
 
-The second line is free memory, and here the code is careful. On a device that shares system memory, `torch.cuda.mem_get_info()` counts the file cache of the kernel as used. Our kit read 67.7 GiB free that way at the start of one run, on a day with a large file cache. After a reboot, the rerun read 112.1 GiB. SGLang checks whether the device is integrated, and then it reads the available memory of the operating system instead {{code}}. That number counts cache that the kernel can free, and it read 113.55 GB at the same start.
+The second line is free memory, and here the code is careful. On a device that shares system memory, `torch.cuda.mem_get_info()` counts the file cache of the kernel as used. In our first recording, on a day with a large file cache, our kit read 67.7 GiB free that way. SGLang checks whether the device is integrated, and then it reads the available memory of the operating system instead {{code}}. That number counts cache that the kernel can free, and it read 113.55 GB at the same start. After a reboot, the two numbers agreed: 112.1 GiB from PyTorch and 112.59 GB from SGLang.
 
 The cost of that choice is that the pool size moves with the rest of the machine. Six BF16 starts used the same command and the same weights:
 
