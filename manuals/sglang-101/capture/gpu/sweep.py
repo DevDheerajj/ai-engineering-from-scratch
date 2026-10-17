@@ -137,7 +137,7 @@ def start_vllm(model, port, directory, profile):
     util = os.environ.get("VLLM_GPU_UTIL", profile.get("vllm_util", "0.9"))
     max_len = profile.get("vllm_max_len", "8192")
     require_free(port)
-    process = launch([vllm, "serve", model, "--host", "127.0.0.1", "--port", str(port), "--num-gpu-blocks-override", blocks, "--gpu-memory-utilization", util, "--max-model-len", max_len, "--seed", "0"], directory / "server.log", {})
+    process = launch([vllm, "serve", model, "--host", "127.0.0.1", "--port", str(port), "--num-gpu-blocks-override", blocks, "--gpu-memory-utilization", util, "--max-model-len", max_len, "--seed", "0"], directory / "server.log", {"VLLM_USE_FLASHINFER_SAMPLER": "0"})
     try:
         wait_healthy([port], [process], directory)
     except RuntimeError:
