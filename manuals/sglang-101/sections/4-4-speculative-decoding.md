@@ -121,11 +121,46 @@ This result goes against the A6000 report above, and the model explains it. A de
 
 The cap is the limit. At concurrency 64, throughput was still higher than the baseline, 276.32 against 235.38 tok/s. The median time to first token was 7,772 ms against 557 ms. The server admits 48 requests, and the other 16 waited in the queue.
 
+## What we measured on a 24 GB L4
+
+We ran the same sweep with the dense `Qwen/Qwen3-8B` and the `Tengyunw/qwen3_8b_eagle3` draft on one L4. This time we set the variable, as the sweep does for every EAGLE-3 server.
+
+```listing
+title: the pool of an EAGLE-3 server on the L4
+source: capture/gpu/out-l4/server-eagle3.log
+lang: text
+note: Startup lines from the server log of the sweep. Timestamps are cut.
+---
+… KV Cache is allocated. dtype: torch.bfloat16, #tokens: 9951, K size: 0.68 GB, V size: 0.68 GB
+… max_total_num_tokens=9951, chunked_prefill_size=4096, max_prefill_tokens=16384, max_running_requests=48, context_len=40960, available_gpu_mem=1.23 GB
+```
+
+**We measured** a pool of 9,951 tokens against 24,094 without the draft. That pool holds about 15 of our 640-token requests, fewer than the cap of 48.
+
+| Concurrency | Default median TPOT | EAGLE-3 median TPOT | Default output tok/s | EAGLE-3 output tok/s |
+|---|---|---|---|---|
+| 1 | 60.16 ms | 25.61 ms | 13.42 | 31.81 |
+| 8 | 66.01 ms | 35.58 ms | 112.62 | 181.55 |
+| 32 | 96.18 ms | 43.82 ms | 270.11 | 269.42 |
+| 64 | 107.42 ms | 51.50 ms | 250.85 | 245.34 |
+
+The acceptance length was 2.73 to 2.74 tokens per step at every concurrency. Each token came out about two times faster at every load. Yet from concurrency 32, the server delivered no more tokens per second than the default.
+
+```figure
+id: fig-4-4c
+kind: chart
+title: On a 24 GB card each token got faster, but the server did not
+claim: On the L4, EAGLE-3 gave 2.37 times the output throughput at concurrency 1 and 1.00 times at 32.
+caption: Violet is default TPOT divided by EAGLE-3 TPOT. Teal is EAGLE-3 output throughput divided by the default. The dashed rose line marks no gain. From capture/gpu/summary/l4.json.
+```
+
+The pool explains the difference. With 15 requests in the pool, the rest waited for a slot. At concurrency 32, the median time to first token was 8,040 ms with EAGLE-3 and 2,970 ms without it. On a card where the KV pool is the limit, the draft spends the memory that the batch needs.
+
 ## Our position
 
 Treat speculative decoding as a latency tool for low and middle concurrency. Turn it on for interactive traffic with a few users per replica. Leave it off for batch jobs and for servers that run at high concurrency.
 
-Measure the cross point on your model before you accept that rule. On the mixture-of-experts model above, speculation still won at concurrency 32 on the GB10.
+Measure the cross point on your model before you accept that rule. On the mixture-of-experts model above, speculation still won at concurrency 32 on the GB10. On the dense model on the L4, it stopped winning at 32, because the draft took nearly 60 percent of the pool.
 
 Always set `--max-running-requests` yourself when speculation is on. Choose it from the concurrency where your sweep shows speculation still wins.
 
@@ -147,4 +182,4 @@ Use the draft layers that come with your model first. A model with multi-token p
 - Treat SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1 as a removed check, and test long prompts yourself.
 ```
 
-Sources: capture/gpu/out-gb10/server-eagle3.log, capture/gpu/out-l4/server-eagle3-no-env.log, server-eagle3.command.txt, eagle3-bench-random-c1.txt, eagle3-bench-random-c8.txt, eagle3-bench-random-c32.txt, capture/gpu/summary/gb10.json, python/sglang/srt/configs/model_config.py (_derive_context_length), docs/cookbook/specbundle/specbundle_usage.mdx, python/sglang/srt/speculative/eagle_worker_v2.py (forward_batch_generation), speculative/eagle_utils.py (build_tree_kernel_efficient, eagle_sample), arg_groups/speculative_hook.py (_auto_choose_speculative_params, _handle_eagle_family, _handle_ngram, _resolve_speculative_algorithm_alias), arg_groups/fields/spec.py, managers/scheduler_components/metrics_reporter.py, and observability/metrics_collector.py at v0.5.22; issues #5274 and #6783; PR #33276; field reports by Ant Group on the LMSYS blog (2025-09-26) and David Noel Ng (2026-08-04); vendor reports by Google Cloud (2025-11-25) and Modal with Decagon (2025-11-13).
+Sources: capture/gpu/out-gb10/server-eagle3.log, capture/gpu/out-l4/server-eagle3-no-env.log, capture/gpu/out-l4/server-eagle3.log, capture/gpu/summary/l4.json, server-eagle3.command.txt, eagle3-bench-random-c1.txt, eagle3-bench-random-c8.txt, eagle3-bench-random-c32.txt, capture/gpu/summary/gb10.json, python/sglang/srt/configs/model_config.py (_derive_context_length), docs/cookbook/specbundle/specbundle_usage.mdx, python/sglang/srt/speculative/eagle_worker_v2.py (forward_batch_generation), speculative/eagle_utils.py (build_tree_kernel_efficient, eagle_sample), arg_groups/speculative_hook.py (_auto_choose_speculative_params, _handle_eagle_family, _handle_ngram, _resolve_speculative_algorithm_alias), arg_groups/fields/spec.py, managers/scheduler_components/metrics_reporter.py, and observability/metrics_collector.py at v0.5.22; issues #5274 and #6783; PR #33276; field reports by Ant Group on the LMSYS blog (2025-09-26) and David Noel Ng (2026-08-04); vendor reports by Google Cloud (2025-11-25) and Modal with Decagon (2025-11-13).
