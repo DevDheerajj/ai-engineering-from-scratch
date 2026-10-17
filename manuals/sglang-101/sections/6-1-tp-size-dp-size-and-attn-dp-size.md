@@ -97,6 +97,23 @@ Before you add GPUs, measure one copy with the benchmark in [section 5.1](#s-sgl
 
 For attention data parallelism, watch `sglang:dp_attention_token_imbalance_ratio`. It reports the busiest group's tokens over the average, and 1.0 means balanced. Our `/metrics` capture lists it even on a single Mac, so your dashboards can include it before you need it.
 
+## What happened on two L4s
+
+We had two NVIDIA L4 cards in one machine, and the second card also ran two small pods for another team. Each pod held 1,746 MiB. We started `Qwen/Qwen3-8B` with `--tp-size 2`, and the server stopped two seconds after NCCL started.
+
+```listing
+title: tensor parallelism refuses an unevenly loaded pair
+source: capture/gpu/incidents/l4-tp-unbalanced-memory.txt
+lang: text
+note: The scheduler exception from the server log, with the other lines cut.
+---
+RuntimeError: The memory capacity is unbalanced. Some GPUs may be occupied by other processes. pre_model_load_memory=18.28375244140625, local_gpu_memory=21.70391845703125, local_gpu_memory * 0.9=19.53
+```
+
+Before it loads weights, each rank measures its free memory, and the group keeps the smallest value. If that value is less than 90 percent of the local free memory, the server stops {{code}}. The second card had 18.28 GB free against the 19.53 GB that the check required. No flag turns the check off at v0.5.22.
+
+The check is right to stop. Each rank of a TP group holds the same share of weights and the same pool. The smallest card sets the size for all of them. On a shared machine, give a TP group whole GPUs. `--dp-size 2` does not have this check, because each copy sizes its own pool, so it started on the same pair.
+
 ```takeaways
 - Set --tp-size to the smallest number of GPUs that fits the model and its KV cache.
 - Add capacity with --dp-size copies or with separate servers behind the gateway.
@@ -106,4 +123,4 @@ For attention data parallelism, watch `sglang:dp_attention_token_imbalance_ratio
 - Send requests to node 0 and keep each TP group inside one machine.
 ```
 
-Sources: python/sglang/srt/distributed/parallel_state.py (initialize_model_parallel), python/sglang/srt/arg_groups/fields/parallel.py, python/sglang/srt/arg_groups/parallel_hook.py (handle_deprecated_dp_attention, handle_data_parallelism), python/sglang/srt/server_args.py, python/sglang/srt/entrypoints/engine.py, and python/sglang/srt/managers/data_parallel_controller.py, all at v0.5.22. capture/out/metrics.txt. Pull request #41818, issue #19953. LMSYS, "SGLang v0.4", 2024-12-04. Luca Lowndes, "SGLang optimisations", 2025-11-07. Ant Group on the LMSYS blog, 2025-09-26.
+Sources: python/sglang/srt/distributed/parallel_state.py (initialize_model_parallel), python/sglang/srt/distributed/bootstrap.py (_check_tp_memory_balance), capture/gpu/incidents/l4-tp-unbalanced-memory.txt, python/sglang/srt/arg_groups/fields/parallel.py, python/sglang/srt/arg_groups/parallel_hook.py (handle_deprecated_dp_attention, handle_data_parallelism), python/sglang/srt/server_args.py, python/sglang/srt/entrypoints/engine.py, and python/sglang/srt/managers/data_parallel_controller.py, all at v0.5.22. capture/out/metrics.txt. Pull request #41818, issue #19953. LMSYS, "SGLang v0.4", 2024-12-04. Luca Lowndes, "SGLang optimisations", 2025-11-07. Ant Group on the LMSYS blog, 2025-09-26.
