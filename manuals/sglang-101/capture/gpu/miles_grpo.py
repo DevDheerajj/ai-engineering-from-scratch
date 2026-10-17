@@ -12,6 +12,8 @@ MODEL_NAME = os.environ.get("MILES_MODEL", "Qwen3-0.6B")
 TRUE_ON_POLICY = os.environ.get("MILES_TRUE_ON_POLICY", "0") == "1"
 NUM_ROLLOUT = int(os.environ.get("MILES_NUM_ROLLOUT", "12"))
 RUN = os.environ.get("MILES_RUN", "true-on-policy" if TRUE_ON_POLICY else "plain")
+SGLANG_ATTENTION = os.environ.get("MILES_SGLANG_ATTENTION", "fa3")
+FSDP_ATTENTION = os.environ.get("MILES_FSDP_ATTENTION", "flash_attention_3")
 
 
 def prepare():
@@ -43,10 +45,10 @@ def execute():
     if TRUE_ON_POLICY:
         args += (
             "--sglang-enable-deterministic-inference --sglang-rl-on-policy-target fsdp "
-            "--sglang-attention-backend triton --attn-implementation triton "
+            f"--sglang-attention-backend {SGLANG_ATTENTION} --attn-implementation {FSDP_ATTENTION} "
             "--deterministic-mode --true-on-policy-mode "
         )
-        env["NCCL_ALGO"] = "allreduce:tree"
+        env.update({"NCCL_ALGO": "allreduce:tree", "NVTE_ALLOW_NONDETERMINISTIC_ALGO": "0", "CUBLAS_WORKSPACE_CONFIG": ":4096:8"})
     U.execute_train(train_args=args, num_gpus_per_node=1, megatron_model_type=None, extra_env_vars=env)
 
 
