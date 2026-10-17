@@ -148,6 +148,8 @@ caption: Output throughput against max concurrency, three seeds per point. Plum 
 
 **We measured** the cost at the tail too. At concurrency 64, the median p99 TTFT of three seeds was 33.4 seconds on one L4 and 391 seconds with two copies. Up to concurrency 4, the two copies were 16 to 41 percent slower, because neither pool was full yet. The loss starts when the small pool fills.
 
+The open-loop sweep of [section 5.1](#s-sglang-benchmark-serving) agreed. With requests arriving at a fixed rate, two copies completed at most 0.21 requests per second inside our latency target. One L4 alone completed 0.96.
+
 Two settings would help here, and we have not measured them yet. `--load-balance-method total_tokens` sends each request to the copy that holds the fewest tokens. Two separate servers behind the gateway in [section 6.4](#s-sgl-model-gateway) can each get a weight. The plain lesson is simpler. Data parallelism adds capacity only when every copy has about the same pool. Check the `#tokens` line of each `DP` rank before you trust the sum.
 
 ```takeaways

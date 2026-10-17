@@ -33,7 +33,7 @@ def case(name, rounds, gap, background=False):
     values = []
     for index in range(rounds):
         time.sleep(gap)
-        values.append(stream(f"{index} {PROMPT}", 8))
+        values.append(stream(f"{name} {index} {PROMPT}", 8))
     stop.set()
     print(json.dumps({"case": name, "gap_s": gap, "background_decode": background, "ttft_ms": values, "median_ttft_ms": statistics.median(values)}), flush=True)
     if worker:
