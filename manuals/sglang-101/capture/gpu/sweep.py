@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import signal
+import statistics
 import subprocess
 import sys
 import time
@@ -45,6 +46,7 @@ def configs(profile):
         "dp2-tokens": (p["model"], ["--dp-size", "2", "--load-balance-method", "total_tokens"]),
         "default-kv-max": (p["model"], [], {}, "0.82"),
         "fp8-kv-max": (p["fp8"], ["--kv-cache-dtype", "fp8_e4m3"], {}, "0.82"),
+        "sglang-h2h": (p["model"], []),
         "pd": (p["model"], []),
         "pd-swap": (p["model"], []),
         "vllm": (p["model"], []),
@@ -203,6 +205,18 @@ def wait_cool(index, limit, timeout=900):
     return temperature(index), round(time.time() - start)
 
 
+def median_clock(path):
+    clocks = []
+    for line in path.read_text().splitlines():
+        parts = [part.strip() for part in line.split(",")]
+        if len(parts) >= 4:
+            try:
+                clocks.append(float(parts[3]))
+            except ValueError:
+                pass
+    return statistics.median(clocks) if clocks else None
+
+
 def telemetry(index, path):
     query = "timestamp,temperature.gpu,power.draw,clocks.sm,clocks_event_reasons.active,utilization.gpu"
     return subprocess.Popen(["nvidia-smi", "-i", index, f"--query-gpu={query}", "--format=csv,noheader,nounits", "-lms", "1000"], stdout=open(path, "w"), stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
@@ -245,6 +259,7 @@ def main():
     parser.add_argument("--port", type=int, default=30000)
     parser.add_argument("--fraction", help="override the memory fraction of the profile")
     parser.add_argument("--cool", type=int, default=65, help="wait until the GPU is at or below this temperature before each run")
+    parser.add_argument("--min-clock", type=float, default=0, help="set a run aside and repeat it, up to three times, when its median SM clock is below this many MHz")
     args = parser.parse_args()
     table = configs(args.profile)
     unknown = [name for name in args.configs if name not in table]
@@ -275,17 +290,26 @@ def main():
         (directory / "server.command.txt").write_text(" ".join([*(f"{k}={v}" for k, v in env.items()), os.path.basename(process.args[0]), *process.args[1:]]) + "\n")
         try:
             for run, bench_args in pending:
-                start_temp, waited = wait_cool(gpu_index(), args.cool)
-                print(f"[{name}] {run} start {start_temp} C after {waited} s", flush=True)
-                sampler = telemetry(gpu_index(), directory / f"{run}.gpu.csv")
-                try:
-                    bench(args.port, directory / f"{run}.jsonl", bench_args, dataset, "vllm" if name == "vllm" else "sglang")
-                finally:
-                    sampler.terminate()
-                    sampler.wait()
-                reject_empty(directory / f"{run}.jsonl")
-                if process.poll() is not None:
-                    raise RuntimeError(f"[{name}] server exited during {run}")
+                for attempt in range(1, 4):
+                    start_temp, waited = wait_cool(gpu_index(), args.cool)
+                    print(f"[{name}] {run} start {start_temp} C after {waited} s", flush=True)
+                    sampler = telemetry(gpu_index(), directory / f"{run}.gpu.csv")
+                    try:
+                        bench(args.port, directory / f"{run}.jsonl", bench_args, dataset, "vllm" if name == "vllm" else "sglang")
+                    finally:
+                        sampler.terminate()
+                        sampler.wait()
+                    reject_empty(directory / f"{run}.jsonl")
+                    if process.poll() is not None:
+                        raise RuntimeError(f"[{name}] server exited during {run}")
+                    clock = median_clock(directory / f"{run}.gpu.csv")
+                    if not args.min_clock or clock is None or clock >= args.min_clock or attempt == 3:
+                        break
+                    print(f"[{name}] {run} median clock {clock} MHz is below {args.min_clock}, run {attempt} set aside", flush=True)
+                    for suffix in (".jsonl", ".txt", ".gpu.csv"):
+                        source = directory / f"{run}{suffix}"
+                        if source.exists():
+                            source.rename(directory / f"{run}.throttled-{attempt}{suffix}")
         finally:
             stop_server(process, args.port)
     print("done", flush=True)
