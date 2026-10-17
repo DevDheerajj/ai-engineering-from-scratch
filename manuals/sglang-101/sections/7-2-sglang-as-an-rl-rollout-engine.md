@@ -117,7 +117,7 @@ timer.py:42 - Timer update_weights end (elapsed: 0.7s)
 [2026-10-17 15:55:01] post-warmup freeze_gc failed
 ```
 
-**We measured** the step time by phase. The SGLang rollout took a median of 57.2 s, at about 3,113 tokens per second. The trainer then recomputed log probabilities in 25.2 s and trained in 80.3 s. The weight update into SGLang took 0.65 s through CUDA IPC.
+**We measured** the step time by phase. The SGLang rollout took a median of 57.2 s, at about 3,113 tokens per second. The trainer then recomputed log probabilities in 25.2 s and trained in 80.3 s. The weight update into SGLang took 0.65 s through CUDA IPC. Releasing and taking back the SGLang memory took a median of 1.7 s, and 4.0 s at worst.
 
 ```figure
 id: fig-7-2c
@@ -135,16 +135,17 @@ Two log lines are worth knowing before you trust a run. About 30 percent of the 
 
 ### True on-policy did not start on a GB10
 
-We then set `--true-on-policy-mode` with the flags of the Miles Triton example. SGLang started, and the trainer stopped 67 seconds after launch.
+We then set `--true-on-policy-mode` with the flags of the Miles Triton example. SGLang started, and the trainer stopped 61 seconds after the launcher began.
 
 ```listing
 title: the FSDP trainer rejects the Triton attention
 source: capture/gpu/out-miles/true-on-policy-error.log
 lang: text
-note: The trainer error and the failed init. Long lines are cut.
+note: The first launcher line, the trainer error, and the failed init. Long lines are cut.
 ---
+[2026-10-17 16:28:41.340 launcher] common.py:290 - EXEC: mkdir -p /root/lab/mode
 ValueError: Specified `attn_implementation="triton"` is not supported. The only possible arguments are `attn_implementation="eager"`, `"paged|eager"`, `"attn_implementation=flash_attention_2"`, `"attn_implementation=paged|flash_attention_2"`, `"attn_implementa
-cell.py:251 - ft op=execute phase=fail cell=trainer-engine-actor-00000 fn=init elapsed_s=0.7
+[2026-10-17 16:29:42.606 trainer_controller_actor] cell.py:251 - ft op=execute phase=fail cell=trainer-engine-actor-00000 fn=init elapsed_s=0.7
 ```
 
 The flag value came from the wrong example. In the FSDP actor, the SGLang Triton attention bridge turns on only when `torch.version.hip` is set, which means AMD GPUs {{code}}. On an NVIDIA GPU the value goes straight to transformers, which has no attention named `triton`.
