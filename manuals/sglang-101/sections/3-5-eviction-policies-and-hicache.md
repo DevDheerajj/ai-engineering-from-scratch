@@ -109,7 +109,20 @@ caption: Median TTFT against the number of distinct system prompts, three seeds 
 
 The card was hot in these runs. From 16 groups up, 52 to 95 percent of the samples had the thermal flag set, on both servers. The default server recomputed more and ran hotter, so part of its loss is the clock. The cache hit lines above do not depend on the clock.
 
-The GB10 ran the same workload as a control, without HiCache. Its pool held 260,013 tokens, room for all 64 system prompts at once. The median TTFT stayed between 448 and 460 ms from 4 groups to 64. Nothing was evicted, so there was nothing for a host tier to bring back.
+The GB10 ran the same workload as a control, without HiCache. We left the host tier off there. The GB10 has one memory for the CPU and the GPU, so a host copy would take memory from the same place as the pool.
+
+```listing
+title: the GB10 pool and two prefill lines from the 64-group run
+source: capture/gpu/out-gb10/server-working-set-default.log
+lang: text
+note: The pool at startup, then two consecutive prefill lines. Long lines are cut.
+---
+[2026-10-17 19:33:31] KV Cache is allocated. dtype: torch.bfloat16, #tokens: 260013, K size: 11.90 GB, V size: 11.90 GB
+[2026-10-17 19:52:36] Prefill batch, #new-seq: 1, #new-token: 67, #cached-token: 2196, token usage: 0.01, #running-req: 0, #queue-req: 0, #pending-token: 0, cuda graph: True, input throughput (token/s): 29.36
+[2026-10-17 19:52:36] Prefill batch, #new-seq: 7, #new-token: 476, #cached-token: 15146, token usage: 0.06, #running-req: 1, #queue-req: 0, #pending-token: 0, cuda graph: True, input throughput (token/s): 1605.53
+```
+
+Its pool held 260,013 tokens, room for all 64 system prompts at once. The second prefill line found 15,146 tokens in the cache for 7 new requests. The median TTFT stayed between 448 and 460 ms from 4 groups to 64. Nothing was evicted, so there was nothing for a host tier to bring back.
 
 The rule from this test is the size of your working set. Add up the distinct prefixes that your users come back to within a few minutes. When that sum is larger than the GPU pool, the host tier pays for itself. When it is smaller, it adds a copy for nothing.
 
@@ -132,4 +145,4 @@ HiCache pays for itself when sessions outlive the GPU pool: multi-turn chat, cod
 - Watch for evict storms and rank hangs in the issues before you deploy HiCache.
 ```
 
-Sources: python/sglang/srt/mem_cache/evict_policy.py, python/sglang/srt/mem_cache/unified_radix_cache.py (write_through_threshold, prefetch_timeout_base), python/sglang/srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py (prefetch_threshold), python/sglang/srt/arg_groups/fields/memory.py at v0.5.22, docs/docs/advanced_features/hicache_design.mdx and radix_eviction_policy.mdx at v0.5.22, the v0.5.21 release notes, the SGLang HiCache post of 2025-09-10, the RBG and Mooncake post on the Alibaba Cloud blog of 2026-03-10, issues #35129, #30760, and #42465, arXiv 2510.15152. capture/gpu/out-l4/server-working-set-hicache.log, capture/gpu/out-l4/server-working-set-default.log, capture/gpu/summary/l4.json. capture/gpu/summary/gb10.json.
+Sources: python/sglang/srt/mem_cache/evict_policy.py, python/sglang/srt/mem_cache/unified_radix_cache.py (write_through_threshold, prefetch_timeout_base), python/sglang/srt/mem_cache/hybrid_cache/hybrid_pool_assembler.py (prefetch_threshold), python/sglang/srt/arg_groups/fields/memory.py at v0.5.22, docs/docs/advanced_features/hicache_design.mdx and radix_eviction_policy.mdx at v0.5.22, the v0.5.21 release notes, the SGLang HiCache post of 2025-09-10, the RBG and Mooncake post on the Alibaba Cloud blog of 2026-03-10, issues #35129, #30760, and #42465, arXiv 2510.15152. capture/gpu/out-l4/server-working-set-hicache.log, capture/gpu/out-l4/server-working-set-default.log, capture/gpu/summary/l4.json. capture/gpu/summary/gb10.json. capture/gpu/out-gb10/server-working-set-default.log.
