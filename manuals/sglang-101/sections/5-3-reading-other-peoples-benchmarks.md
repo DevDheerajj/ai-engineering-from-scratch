@@ -125,7 +125,7 @@ claim: At 64 users on the L4, vLLM gave the first token 1.7 times sooner and SGL
 caption: Solid lines are median TTFT and dashed lines are P99 inter-token latency, three seeds per point, on a log scale. Blue is SGLang and amber is vLLM. From capture/gpu/summary/l4.json.
 ```
 
-**We measured** a tie in throughput. Up to 32 users, the two engines were within 3 percent of each other, and time per token was within 6 percent. Below the point where the pool fills, SGLang gave the first token sooner, 170 against 253 ms at 8 users.
+**We measured** a tie in throughput. Up to 32 users, the two engines were within 3 percent of each other, and time per token was within 6 percent. At 64 users the median time per token was 106 ms on SGLang and 129 ms on vLLM. Below the point where the pool fills, SGLang gave the first token sooner, 170 against 253 ms at 8 users.
 
 Above that point, the engines made different choices, and the stats lines show both. SGLang ran 37 requests and kept 27 waiting, with the pool 92 percent full. The vLLM server ran 40 requests and kept 11 waiting. It filled 99.5 percent of its pool while it prefilled new prompts at 460 tokens per second.
 
