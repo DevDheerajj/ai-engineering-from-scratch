@@ -138,6 +138,9 @@ def main():
     parser.add_argument("--cool", type=int, default=65, help="wait until the GPU is at or below this temperature before each run")
     args = parser.parse_args()
     table = configs(args.profile)
+    unknown = [name for name in args.configs if name not in table]
+    if unknown:
+        parser.error(f"unknown config {', '.join(unknown)}; choose from {', '.join(table)}")
     for name in args.configs:
         model, flags, *rest = table[name]
         env = rest[0] if rest else {}

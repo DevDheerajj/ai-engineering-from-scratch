@@ -14,8 +14,8 @@ const series = [
 
 module.exports = figure('fig-5-1e', {
   height: 340,
-  title: 'Every first token of three runs at a cap of 16, sorted',
-  desc: 'Cumulative distribution of time to first token for all requests of three seeds at a cap of 16 on a GB10. BF16 and FP8 rise steeply near 140 to 240 milliseconds, then flatten and finish near 1.2 and 1.7 seconds. EAGLE-3 starts later, near 580 milliseconds at the median, and has the shortest tail.',
+  title: 'TTFT quantiles of three runs at a cap of 16',
+  desc: 'Quantile curve of time to first token for the pooled requests of three seeds at a cap of 16 on a GB10, drawn from 51 quantiles between 0 and 100 percent. BF16 and FP8 rise steeply near 140 to 240 milliseconds, then flatten and finish near 1.2 and 1.7 seconds. EAGLE-3 starts later, near 580 milliseconds at the median, and has the shortest tail.',
 }, f => {
   const c = chart(f, { x: 66, y: 56, w: 540, h: 230, xScale: 'log10', xDomain: [30, 3000], yDomain: [0, 1], xTicks: [30, 100, 300, 1000, 3000], yTicks: [0, 0.25, 0.5, 0.75, 1], xLabel: 'time to first token, ms (log scale)', yLabel: 'share of requests', yFormat: v => `${Math.round(v * 100)}%` });
   f.rule(c.px(30), c.py(0.9), c.px(3000), c.py(0.9), { hue: 'rose', dash: 'dashed' });

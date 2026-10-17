@@ -92,7 +92,7 @@ Every file in `capture/gpu/out-gb10/` and `capture/gpu/summary/gb10.json` was re
 | Server flags | `--enable-cache-report`, `--enable-metrics`, `--mem-fraction-static 0.7` |
 | Recorded on | 2026-10-16 |
 
-The kit also has an `l4` profile for Qwen3-8B on an NVIDIA L4. Our L4 runs were thermally throttled, so this manual uses them only as the incident in [section 5.1](#s-sglang-benchmark-serving).
+The kit also has an `l4` profile for Qwen3-8B on an NVIDIA L4. Our first L4 sweep ran hot and throttled, and [section 5.1](#s-sglang-benchmark-serving) tells it as an incident. We then ran the L4 again with a cool-down to 72°C before each run. [Section 4.3](#s-quantization), [section 4.4](#s-speculative-decoding), and section 5.1 use those runs, and section 5.1 shows that the cooled card still lowered its clock under long load.
 
 ## Conventions
 

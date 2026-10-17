@@ -44,7 +44,8 @@ def check(content, variant):
     except json.JSONDecodeError:
         return False
     return (
-        set(value) == {"name", "memory_gb", "vendor", "variant"}
+        isinstance(value, dict)
+        and set(value) == {"name", "memory_gb", "vendor", "variant"}
         and isinstance(value["memory_gb"], int)
         and 1 <= value["memory_gb"] <= 1024
         and value["vendor"] in ("nvidia", "amd", "intel", "apple")

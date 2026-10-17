@@ -48,7 +48,7 @@ Absolute home paths in benchmark output are replaced with `~`.
 
 ## The GPU kit
 
-`gpu/` holds a second kit for one NVIDIA GPU. It needs Linux, an NVIDIA driver, `sglang==0.5.22` from PyPI, and the `sglang` command on `PATH`. Choose the hardware profile with `SGLANG_KIT_PROFILE`:
+`gpu/` holds a second kit for one NVIDIA GPU. It needs Linux, an NVIDIA driver, `sglang==0.5.22` from PyPI, and the `sglang` command on `PATH`. It is recorded on the author's machine, not in CI. It needs network access to download the models and the ShareGPT file that the `random` dataset of `sglang.benchmark.serving` reads, so do not set `HF_HUB_OFFLINE=1` for it. Choose the hardware profile with `SGLANG_KIT_PROFILE`:
 
 | Profile | Models | Memory fraction | Output |
 |---|---|---|---|

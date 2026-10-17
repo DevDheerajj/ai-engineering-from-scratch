@@ -1,7 +1,9 @@
 import os
 import sys
 
-sys.path.insert(0, "/root/miles")
+MILES_HOME = os.environ.get("MILES_HOME", "/root/miles")
+if os.path.isdir(MILES_HOME):
+    sys.path.insert(0, MILES_HOME)
 
 from miles.utils.external_utils import command_utils
 
