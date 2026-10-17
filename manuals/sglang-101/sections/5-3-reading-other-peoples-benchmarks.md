@@ -64,6 +64,22 @@ caption: Read each row left to right, from the workload to the reported result t
 
 The same reports show one more pattern. A Blackwell workstation card ran SGLang only with `--disable-cuda-graph`, according to [joshua8.ai](https://joshua8.ai/llm-inference-benchmark/) {{field joshua8 2026-01}}. A mixed cluster crashed when an older card joined, because the FP4 path required compute capability 10.0. [Pivot News](https://pivotnews.ai/build/benchmarking-vllm-vs-sglang-vs-llama-cpp-on-a-mixed-blackwel) summarized that community post {{field Pivot-News 2026-05}}. The fast paths are written per GPU generation, and the paths for other GPUs are fewer. On new hardware, expect the first SGLang release to be slow or broken, and measure again every week.
 
+## What our own machines showed
+
+Field reports tell you which mechanism to test. We tested them on a DGX Spark with a GB10 and on a machine with two 24 GB L4s. Each row below links to the section with the listings, the seeds, and the chart.
+
+| Where | What we ran | Result | Mechanism |
+|---|---|---|---|
+| L4 | 4,096-token shared prompt, cache on and off | median TTFT 479 ms against 14,706 ms, 4.3 times the throughput, [section 3.3](#s-radixcache) | the radix cache |
+| L4 | FP8 weights and KV against BF16 at 64 users | 736 against 251 tok/s, a pool of 142,369 tokens against 24,094, [section 4.3](#s-quantization) | more KV per GB |
+| GB10 | EAGLE-3 on Qwen3-30B-A3B | time per token 1.60 to 1.89 times shorter, and the gain grew with the batch, [section 4.4](#s-speculative-decoding) | MoE verify reuses the expert weights it read |
+| L4 | EAGLE-3 on dense Qwen3-8B | 2.37 times the throughput at one user, 1.00 at 32, [section 4.4](#s-speculative-decoding) | the draft took 59 percent of the pool |
+| L4 pair | `--dp-size 2` with one shared card | 42 against 251 tok/s at 64 users, [section 6.1](#s-tp-size-dp-size-and-attn-dp-size) | round robin fed a copy with an eighth of the pool |
+| L4 pair | `--tp-size 2` with one shared card | refused at startup, [section 6.1](#s-tp-size-dp-size-and-attn-dp-size) | the memory balance check |
+| L4 pair | prefill and decode split over TCP | every request after minute three came back empty with HTTP 200, [section 6.3](#s-prefill-decode-disaggregation) | the transfer session failed and did not recover |
+
+The pattern is the same in every row. SGLang wins by a large factor when a mechanism removes repeated work. Examples are the prefill of a shared prompt and the bytes of each cached token. It loses when a feature spends memory that the batch needs, or when two parts of a deployment are not the same size. None of the losses printed an error that a dashboard would show. Two of them looked like success in the benchmark summary.
+
 ## Our position
 
 For a dense model with unique prompts, the choice of engine is not a performance decision. Decide on model support, startup time, and the hardware you have. For repeated prefixes, SGLang has a real advantage that is smaller than the stories about it. For DeepSeek-class MoE models on many GPUs, start from SGLang, because that is where the field runs them.
