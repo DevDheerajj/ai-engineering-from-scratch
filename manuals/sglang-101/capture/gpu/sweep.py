@@ -43,6 +43,8 @@ def configs(profile):
         "tp2": (p["model"], ["--tp-size", "2"]),
         "dp2": (p["model"], ["--dp-size", "2"]),
         "dp2-tokens": (p["model"], ["--dp-size", "2", "--load-balance-method", "total_tokens"]),
+        "default-kv-max": (p["model"], [], {}, "0.82"),
+        "fp8-kv-max": (p["fp8"], ["--kv-cache-dtype", "fp8_e4m3"], {}, "0.82"),
         "pd": (p["model"], []),
         "pd-swap": (p["model"], []),
         "vllm": (p["model"], []),
@@ -255,13 +257,13 @@ def main():
     for name in args.configs:
         model, flags, *rest = table[name]
         env = rest[0] if rest else {}
+        fraction = rest[1] if len(rest) > 1 else args.fraction or PROFILES[args.profile]["fraction"]
         directory = HERE / "runs" / args.profile / args.sweep / name
         directory.mkdir(parents=True, exist_ok=True)
         pending = [(run, bench_args) for run, bench_args in plan(args.sweep, name) if not (directory / f"{run}.jsonl").exists()]
         if not pending:
             print(f"[{name}] complete", flush=True)
             continue
-        fraction = args.fraction or PROFILES[args.profile]["fraction"]
         if name in ("pd", "pd-swap"):
             process = start_pd(model, args.port, fraction, directory, swap=name == "pd-swap")
         elif name == "vllm":
