@@ -48,7 +48,7 @@ Absolute home paths in benchmark output are replaced with `~`.
 
 ## The GPU kit
 
-`gpu/` holds a second kit for one NVIDIA GPU. It needs Linux, an NVIDIA driver, `sglang==0.5.22` from PyPI, and the `sglang` command on `PATH`. It is recorded on the author's machine, not in CI. Before the first server starts, `run.py` and `sweep.py` download the models and the ShareGPT file that the `random` dataset of `sglang.benchmark.serving` reads, and pass that file with `--dataset-path`. They then set `HF_HUB_OFFLINE=1` for every server and benchmark, so no capture contacts the Hub. After one run, the kit works with no network if you set `HF_HUB_OFFLINE=1` yourself. Choose the hardware profile with `SGLANG_KIT_PROFILE`:
+`gpu/` holds a second kit for one NVIDIA GPU. It needs Linux, an NVIDIA driver, `sglang==0.5.22` from PyPI, and the `sglang` command on `PATH`. We recorded it on our own machines, not in CI. Before the first server starts, `run.py` and `sweep.py` download the models and the ShareGPT file that the `random` dataset of `sglang.benchmark.serving` reads, and pass that file with `--dataset-path`. They then set `HF_HUB_OFFLINE=1` for every server and benchmark, so no capture contacts the Hub. After one run, or with the models already in your Hugging Face cache, the kit works with no network if you set `HF_HUB_OFFLINE=1` yourself. Set `SGLANG_KIT_DATASET` to a local copy of `ShareGPT_V3_unfiltered_cleaned_split.json` to skip that download. Choose the hardware profile with `SGLANG_KIT_PROFILE`:
 
 | Profile | Models | Memory fraction | Output |
 |---|---|---|---|

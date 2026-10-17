@@ -10,7 +10,7 @@ MODEL_FILES = ["*.json", "*.safetensors", "*.txt", "*.model", "*.tiktoken", "*.p
 def prefetch(models):
     for model in models:
         snapshot_download(model, allow_patterns=MODEL_FILES)
-    dataset = hf_hub_download(SHAREGPT_REPO, SHAREGPT_FILE, repo_type="dataset")
+    dataset = os.environ.get("SGLANG_KIT_DATASET") or hf_hub_download(SHAREGPT_REPO, SHAREGPT_FILE, repo_type="dataset")
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
     return dataset
