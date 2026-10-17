@@ -9,6 +9,8 @@ import time
 import urllib.request
 from pathlib import Path
 
+from offline import prefetch, with_dataset
+
 HERE = Path(__file__).resolve().parent
 PYTHON = sys.executable
 PROFILES = {
@@ -72,8 +74,8 @@ def stop_server(process, port):
         time.sleep(1)
 
 
-def bench(port, output, args):
-    command = [PYTHON, "-m", "sglang.benchmark.serving", "--backend", "sglang", "--port", str(port), "--output-file", str(output), "--output-details", *args]
+def bench(port, output, args, dataset):
+    command = [PYTHON, "-m", "sglang.benchmark.serving", "--backend", "sglang", "--port", str(port), "--output-file", str(output), "--output-details", *with_dataset(args, dataset)]
     result = subprocess.run(command, capture_output=True, text=True, timeout=7200, stdin=subprocess.DEVNULL)
     output.with_suffix(".txt").write_text((result.stdout + result.stderr).replace(str(Path.home()), "~"))
     if result.returncode != 0:
@@ -141,6 +143,12 @@ def main():
     unknown = [name for name in args.configs if name not in table]
     if unknown:
         parser.error(f"unknown config {', '.join(unknown)}; choose from {', '.join(table)}")
+    models = {table[name][0] for name in args.configs}
+    for name in args.configs:
+        flags = table[name][1]
+        if "--speculative-draft-model-path" in flags:
+            models.add(flags[flags.index("--speculative-draft-model-path") + 1])
+    dataset = prefetch(sorted(models))
     for name in args.configs:
         model, flags, *rest = table[name]
         env = rest[0] if rest else {}
@@ -158,7 +166,7 @@ def main():
                 print(f"[{name}] {run} start {start_temp} C after {waited} s", flush=True)
                 sampler = telemetry(gpu_index(), directory / f"{run}.gpu.csv")
                 try:
-                    bench(args.port, directory / f"{run}.jsonl", bench_args)
+                    bench(args.port, directory / f"{run}.jsonl", bench_args, dataset)
                 finally:
                     sampler.terminate()
                     sampler.wait()

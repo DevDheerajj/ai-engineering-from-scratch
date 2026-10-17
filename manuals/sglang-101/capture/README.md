@@ -48,7 +48,7 @@ Absolute home paths in benchmark output are replaced with `~`.
 
 ## The GPU kit
 
-`gpu/` holds a second kit for one NVIDIA GPU. It needs Linux, an NVIDIA driver, `sglang==0.5.22` from PyPI, and the `sglang` command on `PATH`. It is recorded on the author's machine, not in CI. It needs network access to download the models and the ShareGPT file that the `random` dataset of `sglang.benchmark.serving` reads, so do not set `HF_HUB_OFFLINE=1` for it. Choose the hardware profile with `SGLANG_KIT_PROFILE`:
+`gpu/` holds a second kit for one NVIDIA GPU. It needs Linux, an NVIDIA driver, `sglang==0.5.22` from PyPI, and the `sglang` command on `PATH`. It is recorded on the author's machine, not in CI. Before the first server starts, `run.py` and `sweep.py` download the models and the ShareGPT file that the `random` dataset of `sglang.benchmark.serving` reads, and pass that file with `--dataset-path`. They then set `HF_HUB_OFFLINE=1` for every server and benchmark, so no capture contacts the Hub. After one run, the kit works with no network if you set `HF_HUB_OFFLINE=1` yourself. Choose the hardware profile with `SGLANG_KIT_PROFILE`:
 
 | Profile | Models | Memory fraction | Output |
 |---|---|---|---|
@@ -64,8 +64,9 @@ python3 capture/gpu/summarize.py gb10
 
 | File | What it does |
 |---|---|
-| `gpu/run.py` | starts eight servers: default, no CUDA graph, no radix cache, no overlap, a 4,096-token pool, FP8 weights with an FP8 KV cache, EAGLE-3, and deterministic inference |
-| `gpu/sweep.py` | runs the `load`, `rate`, and `prefix` sweeps with seeds 1, 2, and 3 and `--output-details`, into `gpu/runs/<profile>/<sweep>/<config>/` |
+| `gpu/run.py` | starts eight servers: default, no CUDA graph, no radix cache, no overlap, a 4,096-token pool, FP8 weights with an FP8 KV cache, EAGLE-3, and deterministic inference. `--only eagle3-no-env` checks the EAGLE-3 context length refusal, and `--only idle-probe` runs `ttft_idle_probe.py` |
+| `gpu/offline.py` | downloads the models and the ShareGPT file once, then sets `HF_HUB_OFFLINE=1` and adds `--dataset-path` to every `random` benchmark |
+| `gpu/sweep.py` | runs the `load`, `rate`, `prefix`, and `waves` sweeps with seeds 1, 2, and 3 and `--output-details`, into `gpu/runs/<profile>/<sweep>/<config>/` |
 | `gpu/summarize.py` | reduces the runs to `gpu/summary/<profile>.json`: the median, lowest, and highest value of each point, goodput, and TTFT and TPOT quantiles |
 | `gpu/determinism_probe.py` | sends one prompt at temperature 0 alone five times, then five times inside a batch of 16, and counts the different answers |
 | `gpu/structured_probe.py` | sends one question without a schema, then with a new JSON schema, the same schema twice more, and a second new schema |

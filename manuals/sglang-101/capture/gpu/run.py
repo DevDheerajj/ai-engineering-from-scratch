@@ -10,6 +10,8 @@ import time
 import urllib.request
 from pathlib import Path
 
+from offline import prefetch, with_dataset
+
 HERE = Path(__file__).resolve().parent
 CLIENTS = HERE.parent
 PROFILES = {
@@ -26,11 +28,12 @@ BASE = f"http://127.0.0.1:{PORT}"
 PYTHON = sys.executable
 SERVER = ["--host", "127.0.0.1", "--port", str(PORT), "--enable-cache-report", "--enable-metrics", "--mem-fraction-static", PROFILES[PROFILE]["fraction"]]
 NO_GRAPH = ["--cuda-graph-backend-decode", "disabled", "--cuda-graph-backend-prefill", "disabled"]
+DATASET = None
 EAGLE = ["--speculative-algorithm", "EAGLE3", "--speculative-draft-model-path", DRAFT, "--speculative-num-steps", "3", "--speculative-eagle-topk", "1", "--speculative-num-draft-tokens", "4"]
 
 
 def bench(name, *args):
-    return lambda: [PYTHON, "-m", "sglang.benchmark.serving", "--backend", "sglang", "--port", str(PORT), "--seed", "7", "--output-file", str(OUT / f"{name}.jsonl"), *args]
+    return lambda: [PYTHON, "-m", "sglang.benchmark.serving", "--backend", "sglang", "--port", str(PORT), "--seed", "7", "--output-file", str(OUT / f"{name}.jsonl"), *with_dataset(args, DATASET)]
 
 
 def random_load(name, concurrency, prompts):
@@ -158,6 +161,7 @@ def environment():
         "machine": platform.machine(),
         "profile": PROFILE,
         "models": [MODEL, MODEL_FP8, DRAFT],
+        "hf_hub_offline": os.environ.get("HF_HUB_OFFLINE") == "1",
     }
 
 
@@ -296,6 +300,10 @@ def main():
 
 
 def record(only=None):
+    global DATASET
+    selected = [e for e in EXPERIMENTS if not only or e["name"] in only]
+    models = {e["model"] for e in selected} | ({DRAFT} if any(DRAFT in e["flags"] for e in selected) else set())
+    DATASET = prefetch(sorted(models))
     OUT.mkdir(exist_ok=True)
     (OUT / "environment.json").write_text(json.dumps(environment(), indent=2) + "\n")
     for experiment in EXPERIMENTS:
