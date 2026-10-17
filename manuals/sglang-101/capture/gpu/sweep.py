@@ -42,6 +42,7 @@ def configs(profile):
         "chunk-8192": (p["model"], ["--chunked-prefill-size", "8192"]),
         "tp2": (p["model"], ["--tp-size", "2"]),
         "dp2": (p["model"], ["--dp-size", "2"]),
+        "dp2-tokens": (p["model"], ["--dp-size", "2", "--load-balance-method", "total_tokens"]),
         "pd": (p["model"], []),
         "vllm": (p["model"], []),
         "moe-tp2": (p.get("moe_fp8", p["fp8"]), ["--tp-size", "2", "--kv-cache-dtype", "fp8_e4m3"]),
