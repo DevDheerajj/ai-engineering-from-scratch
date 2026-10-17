@@ -137,16 +137,16 @@ note: The full command, as the GPU kit started it.
 sglang serve --model-path Qwen/Qwen3-30B-A3B-Instruct-2507 --host 127.0.0.1 --port 30000 --enable-cache-report --enable-metrics --mem-fraction-static 0.7
 ```
 
-At a cap of 8 the single run reported a median first token of 975.61 ms. At a cap of 32 it reported 355.29 ms. More load gave a faster first token, and no queue explains that. One run is one sample, and one sample can be wrong for reasons you never see.
+At a cap of 8 the single run reported a median first token of 677.61 ms. At a cap of 32 it reported 390.38 ms. More load gave a faster first token, and no queue explains that. One run is one sample, and one sample can be wrong for reasons you never see.
 
 So we ran the sweep the way a model team runs a training comparison. `capture/gpu/sweep.py` runs every cap from 1 to 64 three times, with seeds 1, 2, and 3. It passes `--output-details`, so each run keeps the TTFT and the token gaps of every request. `capture/gpu/summarize.py` reduces the three runs of each point to the median, the lowest, and the highest value.
 
 | Cap | Single kit run, median TTFT | Three seeds, median TTFT (lowest to highest) |
 |---|---|---|
-| 8 | 975.61 ms | 209.98 ms (185.25 to 216.02) |
-| 32 | 355.29 ms | 416.37 ms (338.06 to 434.64) |
+| 8 | 677.61 ms | 209.98 ms (185.25 to 216.02) |
+| 32 | 390.38 ms | 416.37 ms (338.06 to 434.64) |
 
-**We measured** both on the same GB10. The 975.61 ms result did not come back in three more runs. The first token gets slower as the cap grows, as the queue predicts.
+**We measured** both on the same GB10. The 677.61 ms result did not come back in three more runs. The first token gets slower as the cap grows, as the queue predicts.
 
 ```figure
 id: fig-5-1c

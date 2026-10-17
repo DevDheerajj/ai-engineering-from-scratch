@@ -86,7 +86,7 @@ Run it against your model, your attention backend, and your parallel layout. One
 
 Our probe sends one prompt at temperature 0 with 128 new tokens. It sends the prompt five times alone, then five times inside a batch of 16 with 15 other prompts. We ran it against `Qwen/Qwen3-30B-A3B-Instruct-2507` on one NVIDIA GB10, first on the default server and then with `--enable-deterministic-inference`.
 
-**We measured** two different answers from the default server. The first request alone and four of the five batched requests wrote one text. The next four requests alone wrote another text, which left the first after 238 characters. One batched request left it after 65 characters. Nothing in the request changed between those runs.
+**We measured** two different answers from the default server. The first request alone and all five batched requests wrote one text. The next four requests alone wrote another text, which left the first after 238 characters. Nothing in the request changed between those runs.
 
 Our reading is that the first request computed its prompt from nothing. The four later ones found that prompt in the radix cache and ran a different prefill path. The `radix_cache` mode of the test above checks that case. We saw the same two-of-five pattern on a second GPU model, an L4.
 

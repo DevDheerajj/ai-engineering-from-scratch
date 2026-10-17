@@ -70,13 +70,13 @@ note: Four lines from the startup log. Timestamps are cut.
 ---
 … Detected fp8 checkpoint.
 … Using FP8 KV cache but no scaling factors provided. Defaulting to scaling factors of 1.0.
-… Load weight end. elapsed=152.64 s, type=Qwen3MoeForCausalLM, quant=fp8, fmt=e4m3, avail mem=83.95 GB, mem usage=30.14 GB.
-… KV Cache is allocated. dtype: torch.float8_e4m3fn, #tokens: 1080523, K size: 24.73 GB, V size: 24.73 GB
+… Load weight end. elapsed=152.29 s, type=Qwen3MoeForCausalLM, quant=fp8, fmt=e4m3, avail mem=83.63 GB, mem usage=29.75 GB.
+… KV Cache is allocated. dtype: torch.float8_e4m3fn, #tokens: 1083008, K size: 24.79 GB, V size: 24.79 GB
 ```
 
-**We measured** what the two choices bought. The weights went from 58.36 GB to 30.14 GB, and the load time went from 313.63 s to 152.64 s. The pool went from 227,098 tokens to 1,080,523 tokens, 4.76 times as many.
+**We measured** what the two choices bought. The weights went from 57.75 GB to 29.75 GB, and the load time went from 323.61 s to 152.29 s. The pool went from 227,243 tokens to 1,083,008 tokens, 4.77 times as many.
 
-Two effects multiply in that number. The smaller weights left 28.22 GB more memory for the pool, which grew from 20.80 GB to 49.46 GB in the units of the log. Each token then took half the bytes, 49,152 against 98,304 for 48 layers with 4 KV heads of size 128.
+Two effects multiply in that number. The smaller weights left 28.00 GB more memory for the pool, which grew from 20.80 GB to 49.58 GB in the units of the log. Each token then took half the bytes, 49,152 against 98,304 for 48 layers with 4 KV heads of size 128.
 
 The second line of the listing is the warning from the previous subsection. We gave no scale file, so every scale is 1.0. Both servers wrote the same 12 tokens for our first request at temperature 0. That is one prompt, and it is not an accuracy check.
 

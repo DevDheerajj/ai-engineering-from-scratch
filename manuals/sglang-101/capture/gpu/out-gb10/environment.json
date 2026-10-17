@@ -8,7 +8,7 @@
   "gpu": "NVIDIA GB10",
   "compute_capability": "12.1",
   "gpu_memory_total_gib": 121.7,
-  "gpu_memory_free_gib_at_start": 67.7,
+  "gpu_memory_free_gib_at_start": 112.1,
   "python": "3.12.3",
   "machine": "aarch64",
   "profile": "gb10",
@@ -16,5 +16,6 @@
     "Qwen/Qwen3-30B-A3B-Instruct-2507",
     "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8",
     "lmsys/SGLang-EAGLE3-Qwen3-30B-A3B-Instruct-2507-SpecForge-Nex"
-  ]
+  ],
+  "hf_hub_offline": true
 }

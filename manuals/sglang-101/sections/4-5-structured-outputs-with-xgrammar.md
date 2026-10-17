@@ -50,15 +50,15 @@ We ran a small probe against `Qwen/Qwen3-30B-A3B-Instruct-2507` on one NVIDIA GB
 
 | Request | Constraint | Latency | Completion tokens | Valid |
 |---|---|---|---|---|
-| 1 | none | 4,153.4 ms | 128 | no schema |
-| 2 | a new schema | 1,951.3 ms | 41 | yes |
-| 3 | the same schema | 1,585.0 ms | 41 | yes |
-| 4 | the same schema | 1,539.7 ms | 41 | yes |
-| 5 | a second new schema | 1,480.1 ms | 41 | yes |
+| 1 | none | 3,943.9 ms | 128 | no schema |
+| 2 | a new schema | 1,636.6 ms | 41 | yes |
+| 3 | the same schema | 1,309.2 ms | 41 | yes |
+| 4 | the same schema | 1,310.9 ms | 41 | yes |
+| 5 | a second new schema | 1,291.1 ms | 41 | yes |
 
 **We measured** one run, so read the table as a direction. Every constrained reply was valid JSON with exactly the four fields. The unconstrained reply ran to the 128-token limit and invented its own keys, such as `gpu_id` and `power_consumption`.
 
-The first constrained request cost about 370 ms more than the repeats. The second new schema showed no such cost. Our reading is that the first cost belongs to the first grammar after startup. The compile of one small schema was too short to see next to a decode of 41 tokens.
+The first constrained request cost about 330 ms more than the repeats. The second new schema showed no such cost. Our reading is that the first cost belongs to the first grammar after startup. The compile of one small schema was too short to see next to a decode of 41 tokens.
 
 The schema fixed the shape and not the facts. The constrained replies named an "NVIDIA A100" with 40 GB, and the unconstrained one gave it "80 GB GDDR6". A grammar checks syntax, and your validator still checks meaning.
 
@@ -68,7 +68,7 @@ Constrain every response that a program parses. A mask is cheaper than a retry.
 
 Do not trust the grammar backend to enforce every JSON Schema keyword. Test each keyword your consumer depends on, such as `minLength`, `pattern`, `minimum`, and `enum`, with a request that tries to break it. Keep a cheap validator behind the server for the fields that matter.
 
-Send a few requests with each common schema after every deploy, so the first user request does not pay the compile time. On the GB10 that first request paid about 370 ms.
+Send a few requests with each common schema after every deploy, so the first user request does not pay the compile time. On the GB10 that first request paid about 330 ms.
 
 ## Incidents
 

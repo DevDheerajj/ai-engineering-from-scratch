@@ -80,31 +80,31 @@ source: capture/gpu/out-gb10/server-default.log
 lang: text
 note: Lines cut from the startup of the default GPU configuration, Qwen3-30B-A3B in BF16 with a fraction of 0.7.
 ---
-[2026-10-16 14:30:35] Failed to get GPU memory capacity from nvidia-smi. Falling back to torch.cuda.mem_get_info(). Reported total GPU memory per device (MiB): [124610], using min: 124610 MiB.
+[2026-10-17 14:12:57] Failed to get GPU memory capacity from nvidia-smi. Falling back to torch.cuda.mem_get_info(). Reported total GPU memory per device (MiB): [124610], using min: 124610 MiB.
 …
-[2026-10-16 14:30:45] Load weight begin. avail mem=113.46 GB
+[2026-10-17 14:13:05] Load weight begin. avail mem=112.59 GB
 …
-[2026-10-16 14:35:59] Load weight end. elapsed=313.63 s, type=Qwen3MoeForCausalLM, avail mem=55.10 GB, mem usage=58.36 GB.
-[2026-10-16 14:36:07] KV Cache is allocated. dtype: torch.bfloat16, #tokens: 227098, K size: 10.40 GB, V size: 10.40 GB
-[2026-10-16 14:36:07] Memory pool end. avail mem=32.11 GB
+[2026-10-17 14:18:29] Load weight end. elapsed=323.61 s, type=Qwen3MoeForCausalLM, avail mem=54.84 GB, mem usage=57.75 GB.
+[2026-10-17 14:18:32] KV Cache is allocated. dtype: torch.bfloat16, #tokens: 227243, K size: 10.40 GB, V size: 10.40 GB
+[2026-10-17 14:18:32] Memory pool end. avail mem=31.22 GB
 ```
 
 The first line is the capacity. `nvidia-smi` reports no memory size for the GB10, so SGLang takes the total from PyTorch.
 
-The second line is free memory, and here the code is careful. On a device that shares system memory, `torch.cuda.mem_get_info()` counts the file cache of the kernel as used. Our kit read 67.7 GiB free that way at the start of one run. SGLang checks whether the device is integrated, and then it reads the available memory of the operating system instead {{code}}. That number counts cache that the kernel can free, and it read 113.55 GB at the same start.
+The second line is free memory, and here the code is careful. On a device that shares system memory, `torch.cuda.mem_get_info()` counts the file cache of the kernel as used. Our kit read 67.7 GiB free that way at the start of one run, on a day with a large file cache. After a reboot, the rerun read 112.1 GiB. SGLang checks whether the device is integrated, and then it reads the available memory of the operating system instead {{code}}. That number counts cache that the kernel can free, and it read 113.55 GB at the same start.
 
 The cost of that choice is that the pool size moves with the rest of the machine. Six BF16 starts used the same command and the same weights:
 
 | Configuration | Available before weights | Weights, as SGLang measured them | KV pool, tokens |
 |---|---|---|---|
-| default | 113.46 GB | 58.36 GB | 227,098 |
-| no CUDA graph | 113.58 GB | 57.58 GB | 236,518 |
-| deterministic | 114.12 GB | 57.91 GB | 237,200 |
-| no radix cache | 113.60 GB | 57.52 GB | 237,338 |
-| no overlap | 114.03 GB | 55.09 GB | 261,113 |
-| EAGLE-3, with a draft model | 113.55 GB | 58.23 GB | 217,886 |
+| default | 112.59 GB | 57.75 GB | 227,243 |
+| no CUDA graph | 113.21 GB | 54.78 GB | 258,017 |
+| deterministic | 113.44 GB | 57.90 GB | 234,517 |
+| no radix cache | 113.17 GB | 57.34 GB | 236,315 |
+| no overlap | 113.37 GB | 57.92 GB | 233,822 |
+| EAGLE-3, with a draft model | 113.45 GB | 57.49 GB | 216,775 |
 
-The weights did not change, yet their measured size went from 55.09 GB to 58.36 GB. SGLang measures them as the drop in available memory, and the kernel cache changed during each load. Among the five starts without a draft model, the pool differs by 15 percent. On unified memory, a pool size from one start is an estimate for the next start, not a constant.
+The weights did not change, yet their measured size went from 54.78 GB to 57.92 GB. SGLang measures them as the drop in available memory, and the kernel cache changed during each load. Among the five starts without a draft model, the pool differs by 14 percent. A day earlier, the same six starts put the outlier on the no-overlap server, with 261,113 tokens. The outlier moved, so the cause is the machine, not the flag. On unified memory, a pool size from one start is an estimate for the next start, not a constant.
 
 ## A pool that other programs see
 

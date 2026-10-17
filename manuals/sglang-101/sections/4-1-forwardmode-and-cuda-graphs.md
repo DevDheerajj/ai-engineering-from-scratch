@@ -100,7 +100,7 @@ The cost above assumes a fast GPU and a small model. We tested a different case:
 | 8 | 102.21 ms | 104.77 ms | 74.11 | 73.46 |
 | 64 | 254.06 ms | 253.77 ms | 235.38 | 235.79 |
 
-The two lines lie on top of each other in [figure 5.1c](#fig-5-1c). The graphs still cost startup time and memory. The decode capture took 4.61 s and 1.33 GB, and the prefill capture took 36.33 s and 1.75 GB.
+The two lines lie on top of each other in [figure 5.1c](#fig-5-1c). The graphs still cost startup time and memory. The decode capture took 4.61 s and 1.73 GB, and the prefill capture took 35.06 s and 2.14 GB.
 
 Our reading of this result: one decode step of this model takes about 32 ms at batch 1. The launch time that a graph removes is small next to that step. Each step reads the weights of the experts that its tokens chose, and memory bandwidth sets the time.
 

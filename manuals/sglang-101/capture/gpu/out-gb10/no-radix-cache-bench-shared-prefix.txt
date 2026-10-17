@@ -13,52 +13,52 @@ Backend:                                 sglang
 Traffic request rate:                    inf       
 Max request concurrency:                 8         
 Successful requests:                     64        
-Benchmark duration (s):                  52.80     
+Benchmark duration (s):                  50.26     
 Total input tokens:                      146646    
 Total input text tokens:                 146646    
 Total generated tokens:                  4096      
 Total generated tokens (retokenized):    3916      
-Request throughput (req/s):              1.21      
-Input token throughput (tok/s):          2777.46   
-Output token throughput (tok/s):         77.58     
-Peak output token throughput (tok/s):    184.00    
+Request throughput (req/s):              1.27      
+Input token throughput (tok/s):          2917.46   
+Output token throughput (tok/s):         81.49     
+Peak output token throughput (tok/s):    200.00    
 Peak concurrent requests:                16        
-Total token throughput (tok/s):          2855.04   
+Total token throughput (tok/s):          2998.95   
 Concurrency:                             7.99      
 ----------------End-to-End Latency----------------
-Mean E2E Latency (ms):                   6594.85   
-Median E2E Latency (ms):                 6547.74   
-P90 E2E Latency (ms):                    7260.65   
-P95 E2E Latency (ms):                    7276.80   
-P99 E2E Latency (ms):                    7277.18   
+Mean E2E Latency (ms):                   6278.45   
+Median E2E Latency (ms):                 6122.43   
+P90 E2E Latency (ms):                    6648.68   
+P95 E2E Latency (ms):                    6652.19   
+P99 E2E Latency (ms):                    6653.05   
 ---------------Time to First Token----------------
-Mean TTFT (ms):                          2521.66   
-Median TTFT (ms):                        2831.78   
-P90 TTFT (ms):                           3347.65   
-P95 TTFT (ms):                           4162.08   
-P99 TTFT (ms):                           4305.92   
+Mean TTFT (ms):                          2391.67   
+Median TTFT (ms):                        2542.06   
+P90 TTFT (ms):                           3272.33   
+P95 TTFT (ms):                           3299.83   
+P99 TTFT (ms):                           3304.86   
 -----Time per Output Token (excl. 1st token)------
-Mean TPOT (ms):                          64.65     
-Median TPOT (ms):                        62.26     
-P90 TPOT (ms):                           89.79     
-P95 TPOT (ms):                           97.36     
-P99 TPOT (ms):                           102.46    
+Mean TPOT (ms):                          61.70     
+Median TPOT (ms):                        59.91     
+P90 TPOT (ms):                           87.30     
+P95 TPOT (ms):                           88.43     
+P99 TPOT (ms):                           96.25     
 ---------------Inter-Token Latency----------------
-Mean ITL (ms):                           64.65     
-Median ITL (ms):                         48.45     
-P90 ITL (ms):                            58.25     
-P95 ITL (ms):                            62.18     
-P99 ITL (ms):                            75.25     
-Max ITL (ms):                            3813.51   
+Mean ITL (ms):                           61.69     
+Median ITL (ms):                         46.34     
+P90 ITL (ms):                            55.09     
+P95 ITL (ms):                            59.56     
+P99 ITL (ms):                            70.86     
+Max ITL (ms):                            2792.44   
 ==================================================
 
   0%|          | 0/64 [00:00<?, ?it/s]
-  2%|▏         | 1/64 [00:07<07:35,  7.23s/it]
- 14%|█▍        | 9/64 [00:13<01:11,  1.30s/it]
- 27%|██▋       | 17/64 [00:19<00:47,  1.01s/it]
- 39%|███▉      | 25/64 [00:26<00:36,  1.06it/s]
- 52%|█████▏    | 33/64 [00:33<00:28,  1.10it/s]
- 64%|██████▍   | 41/64 [00:39<00:19,  1.16it/s]
- 77%|███████▋  | 49/64 [00:46<00:12,  1.17it/s]
- 89%|████████▉ | 57/64 [00:52<00:05,  1.20it/s]
-100%|██████████| 64/64 [00:52<00:00,  1.21it/s]
+  2%|▏         | 1/64 [00:06<06:22,  6.08s/it]
+ 14%|█▍        | 9/64 [00:12<01:05,  1.19s/it]
+ 27%|██▋       | 17/64 [00:18<00:44,  1.05it/s]
+ 39%|███▉      | 25/64 [00:24<00:34,  1.12it/s]
+ 52%|█████▏    | 33/64 [00:31<00:26,  1.15it/s]
+ 64%|██████▍   | 41/64 [00:37<00:19,  1.21it/s]
+ 77%|███████▋  | 49/64 [00:44<00:12,  1.22it/s]
+ 89%|████████▉ | 57/64 [00:50<00:05,  1.24it/s]
+100%|██████████| 64/64 [00:50<00:00,  1.27it/s]
