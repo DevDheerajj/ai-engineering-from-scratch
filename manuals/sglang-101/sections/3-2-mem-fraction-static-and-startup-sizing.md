@@ -170,13 +170,35 @@ note: The pool at a fraction of 0.82, and the decode line with the highest token
 id: fig-3-2c
 kind: chart
 title: A larger pool bought nothing when the pool was never full
-claim: Raising the fraction from 0.7 to 0.82 on the GB10 grew the BF16 pool by 63 percent and changed throughput by less than 2 percent.
+claim: Raising the fraction from 0.7 to 0.82 on the GB10 grew the BF16 pool by 63 percent and changed closed-loop throughput by less than 2 percent.
 caption: Output throughput against max concurrency, three seeds per point. Solid lines are 0.7 and dashed lines are 0.82. Plum is BF16 and green is FP8 with an FP8 KV cache. From capture/gpu/summary/gb10.json.
 ```
 
 The log line explains it. Sixty-four requests held 40,751 tokens, 11 percent of the pool. At 0.7 the highest token usage was 17 percent. The pool was never the limit, so a larger pool had nothing to do. Compare the L4 in [section 4.3](#s-quantization), where the BF16 pool was full at 64 users and FP8 nearly tripled the throughput.
 
-On a machine that the GB10 shares with other programs, the extra 13.6 GB had a cost and no benefit. Size the pool from your token usage at peak load, not from the memory you have.
+The open-loop sweep of [section 5.1](#s-sglang-benchmark-serving) gave the other half of the answer. At 16 requests per second, more than the GB10 serves, requests kept arriving while earlier ones still ran. There the larger pool did matter.
+
+```listing
+title: the pool at 0.7 under an open-loop overload
+source: capture/gpu/out-gb10/server-rate-default-full.log
+lang: text
+note: One decode line at 16 offered requests per second, at a fraction of 0.7.
+---
+[2026-10-16 19:08:23] Decode batch, #running-req: 374, #token: 227530, token usage: 0.96, cuda graph: False, gen throughput (token/s): 866.37, #queue-req: 101
+```
+
+```listing
+title: the pool at 0.82 under the same overload
+source: capture/gpu/out-gb10/server-rate-default-kv-max.log
+lang: text
+note: The decode line with the highest token usage at 16 offered requests per second, at a fraction of 0.82.
+---
+[2026-10-17 18:00:45] Decode batch, #running-req: 480, #token: 289721, token usage: 0.75, cuda graph: False, gen throughput (token/s): 994.20, #queue-req: 0
+```
+
+At 0.7 the pool was 96 percent full, and 101 requests waited outside it. At 0.82 all 480 requests of the run fit at once. **We measured** 5.19 completed requests per second against 3.88, 34 percent more, and 664 against 497 output tok/s, three seeds each. The two runs were a day apart, so part of the gap can be the machine. The log lines show the mechanism, and the size of the gain belongs to this run. FP8 had a pool of over a million tokens at both fractions, and its rate did not change: 8.29 against 8.26.
+
+So the extra 13.6 GB bought nothing at 64 users and a third more throughput in an overload. Size the pool from your token usage at peak load, including the burst that arrives faster than you serve. On a machine that the GB10 shares with other programs, memory you do not need is memory another program cannot use.
 
 On a dedicated GPU, trust the automatic value first. Raise the fraction in steps of 0.02 only when the scheduler log shows a full pool and retractions. Find the upper limit in staging with your longest prompts, then run production one or two steps below it. Lower it when long prompts fail in attention, as in issue #6027.
 
@@ -191,7 +213,7 @@ The fraction also changes comparisons. One independent benchmark ran SGLang with
 One more caution for Apple silicon. The `kv_cache_memory_usage_gb` metric read 0.0 in our capture, because the MLX backend allocates its own pool outside the accounting that the metric reads. Use the `MlxAttentionKVPool` log line, which reported about 19,860 MB.
 
 ```takeaways
-- Size the KV pool from token usage at peak load, not from free memory.
+- Size the KV pool from token usage at peak load, bursts included, not from free memory.
 - Pass --mem-fraction-static yourself on any machine that runs other programs.
 - Read kv_budget and max_total_num_tokens in the startup log after every change.
 - Raise the fraction in small steps only when the pool is full and requests retract.
@@ -200,4 +222,4 @@ One more caution for Apple silicon. The `kv_cache_memory_usage_gb` metric read 0
 - On a GB10, read the pool size in each startup log, because it changes between starts.
 ```
 
-Sources: python/sglang/srt/arg_groups/memory_hook.py (handle_gpu_memory_settings), python/sglang/srt/mem_cache/kv_cache_configurator.py (_profile_available_bytes), python/sglang/srt/hardware_backend/mlx/model_runner.py (_compute_pool_size), python/sglang/srt/arg_groups/fields/schedule.py (mem_fraction_static) at v0.5.22, capture/out/oom-exploratory.log, capture/out/server-default.log, capture/out/metrics.txt, python/sglang/srt/utils/common.py (get_available_gpu_memory) at v0.5.22, capture/gpu/out-gb10/server-*.log, capture/gpu/out-gb10/environment.json, capture/gpu/incidents/gb10-memory-guard-pauses.txt, capture/gpu/incidents/gb10-driver-no-memory.txt, issues #39675, #42510, and #6027, the Rawlinson benchmark of 2025-12-05. capture/gpu/out-gb10/server-load-default-kv-max.log, capture/gpu/summary/gb10.json.
+Sources: python/sglang/srt/arg_groups/memory_hook.py (handle_gpu_memory_settings), python/sglang/srt/mem_cache/kv_cache_configurator.py (_profile_available_bytes), python/sglang/srt/hardware_backend/mlx/model_runner.py (_compute_pool_size), python/sglang/srt/arg_groups/fields/schedule.py (mem_fraction_static) at v0.5.22, capture/out/oom-exploratory.log, capture/out/server-default.log, capture/out/metrics.txt, python/sglang/srt/utils/common.py (get_available_gpu_memory) at v0.5.22, capture/gpu/out-gb10/server-*.log, capture/gpu/out-gb10/environment.json, capture/gpu/incidents/gb10-memory-guard-pauses.txt, capture/gpu/incidents/gb10-driver-no-memory.txt, issues #39675, #42510, and #6027, the Rawlinson benchmark of 2025-12-05. capture/gpu/out-gb10/server-load-default-kv-max.log, capture/gpu/summary/gb10.json. capture/gpu/out-gb10/server-rate-default-full.log, capture/gpu/out-gb10/server-rate-default-kv-max.log.
