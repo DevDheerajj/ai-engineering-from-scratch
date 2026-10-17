@@ -15,9 +15,9 @@ HERE = Path(__file__).resolve().parent
 PYTHON = sys.executable
 PROFILES = {
     "gb10": {"model": "Qwen/Qwen3-30B-A3B-Instruct-2507", "fp8": "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8", "draft": "lmsys/SGLang-EAGLE3-Qwen3-30B-A3B-Instruct-2507-SpecForge-Nex", "fraction": "0.7"},
-    "l4": {"model": "Qwen/Qwen3-8B", "fp8": "Qwen/Qwen3-8B-FP8", "draft": "Tengyunw/qwen3_8b_eagle3", "fraction": "0.85", "moe_fp8": "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8"},
+    "l4": {"model": "Qwen/Qwen3-8B", "fp8": "Qwen/Qwen3-8B-FP8", "draft": "Tengyunw/qwen3_8b_eagle3", "fraction": "0.85", "moe_fp8": "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8", "vllm_blocks": "1506", "vllm_util": "0.9"},
 }
-PROFILES["l4-gpu1"] = PROFILES["l4"]
+PROFILES["l4-gpu1"] = {**PROFILES["l4"], "vllm_blocks": "183", "vllm_util": "0.8"}
 CONCURRENCY = [1, 2, 4, 8, 16, 32, 64]
 RATES = [0.5, 1, 2, 4, 8, 16]
 PREFIXES = [0, 256, 1024, 2048, 4096]
@@ -131,11 +131,12 @@ def start_pd(model, port, fraction, directory, swap=False):
     return Group(started)
 
 
-def start_vllm(model, port, directory):
+def start_vllm(model, port, directory, profile):
     vllm = os.environ.get("VLLM_BIN", "vllm")
-    blocks = os.environ.get("VLLM_GPU_BLOCKS", "1506")
+    blocks = os.environ.get("VLLM_GPU_BLOCKS", profile.get("vllm_blocks", "1506"))
+    util = os.environ.get("VLLM_GPU_UTIL", profile.get("vllm_util", "0.9"))
     require_free(port)
-    process = launch([vllm, "serve", model, "--host", "127.0.0.1", "--port", str(port), "--num-gpu-blocks-override", blocks, "--gpu-memory-utilization", "0.9", "--seed", "0"], directory / "server.log", {})
+    process = launch([vllm, "serve", model, "--host", "127.0.0.1", "--port", str(port), "--num-gpu-blocks-override", blocks, "--gpu-memory-utilization", util, "--seed", "0"], directory / "server.log", {})
     try:
         wait_healthy([port], [process], directory)
     except RuntimeError:
@@ -267,7 +268,7 @@ def main():
         if name in ("pd", "pd-swap"):
             process = start_pd(model, args.port, fraction, directory, swap=name == "pd-swap")
         elif name == "vllm":
-            process = start_vllm(model, args.port, directory)
+            process = start_vllm(model, args.port, directory, PROFILES[args.profile])
         else:
             process = start_server(model, flags, args.port, fraction, directory / "server.log", env)
         (directory / "server.command.txt").write_text(" ".join([*(f"{k}={v}" for k, v in env.items()), os.path.basename(process.args[0]), *process.args[1:]]) + "\n")
