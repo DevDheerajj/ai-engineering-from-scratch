@@ -44,6 +44,7 @@ def configs(profile):
         "dp2": (p["model"], ["--dp-size", "2"]),
         "dp2-tokens": (p["model"], ["--dp-size", "2", "--load-balance-method", "total_tokens"]),
         "pd": (p["model"], []),
+        "pd-swap": (p["model"], []),
         "vllm": (p["model"], []),
         "moe-tp2": (p.get("moe_fp8", p["fp8"]), ["--tp-size", "2", "--kv-cache-dtype", "fp8_e4m3"]),
     }
@@ -106,11 +107,13 @@ def wait_healthy(ports, processes, log_dir):
     raise RuntimeError(f"servers did not become healthy, see {log_dir}")
 
 
-def start_pd(model, port, fraction, directory):
+def start_pd(model, port, fraction, directory, swap=False):
     sglang = shutil.which("sglang") or "sglang"
     prefill_port, decode_port, bootstrap = port + 10, port + 20, 8998
     common = [sglang, "serve", "--model-path", model, "--host", "127.0.0.1", "--enable-cache-report", "--enable-metrics", "--mem-fraction-static", fraction, "--disaggregation-transfer-backend", "mooncake_tcp"]
     first, second = gpu_index().split(",")[:2]
+    if swap:
+        first, second = second, first
     require_free(port, prefill_port, decode_port)
     started = []
     try:
@@ -137,6 +140,15 @@ def start_vllm(model, port, directory):
         stop_server(process, port)
         raise
     return process
+
+
+def reject_empty(path):
+    with path.open() as handle:
+        row = json.loads(handle.readline())
+    ttfts = row.get("ttfts") or []
+    if ttfts and all(not t for t in ttfts):
+        path.rename(path.with_suffix(".empty.jsonl"))
+        raise RuntimeError(f"{path.name}: every request returned with a TTFT of 0, so no tokens were streamed")
 
 
 def stop_server(process, port):
@@ -250,8 +262,8 @@ def main():
             print(f"[{name}] complete", flush=True)
             continue
         fraction = args.fraction or PROFILES[args.profile]["fraction"]
-        if name == "pd":
-            process = start_pd(model, args.port, fraction, directory)
+        if name in ("pd", "pd-swap"):
+            process = start_pd(model, args.port, fraction, directory, swap=name == "pd-swap")
         elif name == "vllm":
             process = start_vllm(model, args.port, directory)
         else:
@@ -267,6 +279,7 @@ def main():
                 finally:
                     sampler.terminate()
                     sampler.wait()
+                reject_empty(directory / f"{run}.jsonl")
                 if process.poll() is not None:
                     raise RuntimeError(f"[{name}] server exited during {run}")
         finally:
