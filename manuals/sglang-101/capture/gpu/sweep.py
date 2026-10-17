@@ -15,9 +15,9 @@ HERE = Path(__file__).resolve().parent
 PYTHON = sys.executable
 PROFILES = {
     "gb10": {"model": "Qwen/Qwen3-30B-A3B-Instruct-2507", "fp8": "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8", "draft": "lmsys/SGLang-EAGLE3-Qwen3-30B-A3B-Instruct-2507-SpecForge-Nex", "fraction": "0.7"},
-    "l4": {"model": "Qwen/Qwen3-8B", "fp8": "Qwen/Qwen3-8B-FP8", "draft": "Tengyunw/qwen3_8b_eagle3", "fraction": "0.85", "moe_fp8": "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8", "vllm_blocks": "1506", "vllm_util": "0.9"},
+    "l4": {"model": "Qwen/Qwen3-8B", "fp8": "Qwen/Qwen3-8B-FP8", "draft": "Tengyunw/qwen3_8b_eagle3", "fraction": "0.85", "moe_fp8": "Qwen/Qwen3-30B-A3B-Instruct-2507-FP8", "vllm_blocks": "1506", "vllm_util": "0.9", "vllm_max_len": "8192"},
 }
-PROFILES["l4-gpu1"] = {**PROFILES["l4"], "vllm_blocks": "183", "vllm_util": "0.8"}
+PROFILES["l4-gpu1"] = {**PROFILES["l4"], "vllm_blocks": "183", "vllm_util": "0.8", "vllm_max_len": "2928"}
 CONCURRENCY = [1, 2, 4, 8, 16, 32, 64]
 RATES = [0.5, 1, 2, 4, 8, 16]
 PREFIXES = [0, 256, 1024, 2048, 4096]
@@ -135,8 +135,9 @@ def start_vllm(model, port, directory, profile):
     vllm = os.environ.get("VLLM_BIN", "vllm")
     blocks = os.environ.get("VLLM_GPU_BLOCKS", profile.get("vllm_blocks", "1506"))
     util = os.environ.get("VLLM_GPU_UTIL", profile.get("vllm_util", "0.9"))
+    max_len = profile.get("vllm_max_len", "8192")
     require_free(port)
-    process = launch([vllm, "serve", model, "--host", "127.0.0.1", "--port", str(port), "--num-gpu-blocks-override", blocks, "--gpu-memory-utilization", util, "--seed", "0"], directory / "server.log", {})
+    process = launch([vllm, "serve", model, "--host", "127.0.0.1", "--port", str(port), "--num-gpu-blocks-override", blocks, "--gpu-memory-utilization", util, "--max-model-len", max_len, "--seed", "0"], directory / "server.log", {})
     try:
         wait_healthy([port], [process], directory)
     except RuntimeError:
