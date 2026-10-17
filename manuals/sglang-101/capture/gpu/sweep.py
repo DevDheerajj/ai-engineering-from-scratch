@@ -56,9 +56,14 @@ def healthy(port):
         return False
 
 
+def require_free(*ports):
+    for port in ports:
+        if healthy(port):
+            raise RuntimeError(f"another server already answers on port {port}")
+
+
 def start_server(model, flags, port, fraction, log_path, env=None):
-    if healthy(port):
-        raise RuntimeError(f"another server already answers on port {port}")
+    require_free(port)
     command = [shutil.which("sglang") or "sglang", "serve", "--model-path", model, "--host", "127.0.0.1", "--port", str(port), "--enable-cache-report", "--enable-metrics", "--mem-fraction-static", fraction, *flags]
     process = subprocess.Popen(command, stdout=open(log_path, "w"), stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env={**os.environ, **(env or {})}, start_new_session=True)
     deadline = time.time() + 1800
@@ -105,23 +110,25 @@ def start_pd(model, port, fraction, directory):
     prefill_port, decode_port, bootstrap = port + 10, port + 20, 8998
     common = [sglang, "serve", "--model-path", model, "--host", "127.0.0.1", "--enable-cache-report", "--enable-metrics", "--mem-fraction-static", fraction, "--disaggregation-transfer-backend", "mooncake_tcp"]
     first, second = gpu_index().split(",")[:2]
-    prefill = launch([*common, "--port", str(prefill_port), "--disaggregation-mode", "prefill", "--disaggregation-bootstrap-port", str(bootstrap)], directory / "server-prefill.log", {"CUDA_VISIBLE_DEVICES": first})
-    decode = launch([*common, "--port", str(decode_port), "--disaggregation-mode", "decode"], directory / "server-decode.log", {"CUDA_VISIBLE_DEVICES": second})
-    group = Group([prefill, decode])
+    require_free(port, prefill_port, decode_port)
+    started = []
     try:
-        wait_healthy([prefill_port, decode_port], group.processes, directory)
-        router = launch([PYTHON, "-m", "sglang_router.launch_router", "--pd-disaggregation", "--prefill", f"http://127.0.0.1:{prefill_port}", str(bootstrap), "--decode", f"http://127.0.0.1:{decode_port}", "--host", "127.0.0.1", "--port", str(port)], directory / "router.log", {})
-        group = Group([router, prefill, decode])
-        wait_healthy([port], group.processes, directory)
-    except RuntimeError:
-        stop_server(group, port)
+        started.append(launch([*common, "--port", str(prefill_port), "--disaggregation-mode", "prefill", "--disaggregation-bootstrap-port", str(bootstrap)], directory / "server-prefill.log", {"CUDA_VISIBLE_DEVICES": first}))
+        started.append(launch([*common, "--port", str(decode_port), "--disaggregation-mode", "decode"], directory / "server-decode.log", {"CUDA_VISIBLE_DEVICES": second}))
+        wait_healthy([prefill_port, decode_port], started, directory)
+        started.insert(0, launch([PYTHON, "-m", "sglang_router.launch_router", "--pd-disaggregation", "--prefill", f"http://127.0.0.1:{prefill_port}", str(bootstrap), "--decode", f"http://127.0.0.1:{decode_port}", "--host", "127.0.0.1", "--port", str(port)], directory / "router.log", {}))
+        wait_healthy([port], started, directory)
+    except BaseException:
+        for process in started:
+            stop_server(process, port)
         raise
-    return group
+    return Group(started)
 
 
 def start_vllm(model, port, directory):
     vllm = os.environ.get("VLLM_BIN", "vllm")
     blocks = os.environ.get("VLLM_GPU_BLOCKS", "1506")
+    require_free(port)
     process = launch([vllm, "serve", model, "--host", "127.0.0.1", "--port", str(port), "--num-gpu-blocks-override", blocks, "--gpu-memory-utilization", "0.9", "--seed", "0"], directory / "server.log", {})
     try:
         wait_healthy([port], [process], directory)

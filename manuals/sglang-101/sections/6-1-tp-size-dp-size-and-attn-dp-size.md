@@ -107,7 +107,7 @@ source: capture/gpu/incidents/l4-tp-unbalanced-memory.txt
 lang: text
 note: The scheduler exception from the server log, with the other lines cut.
 ---
-RuntimeError: The memory capacity is unbalanced. Some GPUs may be occupied by other processes. pre_model_load_memory=18.28375244140625, local_gpu_memory=21.70391845703125, local_gpu_memory * 0.9=19.53
+RuntimeError: The memory capacity is unbalanced. Some GPUs may be occupied by other processes. pre_model_load_memory=18.28375244140625, local_gpu_memory=21.70391845703125, local_gpu_memory * 0.9=19.533526611328124
 ```
 
 Before it loads weights, each rank measures its free memory, and the group keeps the smallest value. If that value is less than 90 percent of the local free memory, the server stops {{code}}. The second card had 18.28 GB free against the 19.53 GB that the check required. No flag turns the check off at v0.5.22.
