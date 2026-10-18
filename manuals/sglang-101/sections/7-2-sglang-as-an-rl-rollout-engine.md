@@ -157,7 +157,7 @@ claim: Over 48 steps the raw reward went up from a mean of 0.636 to 0.758, and t
 caption: Raw reward and the share of samples cut at 1,024 tokens for each step, one seed. The means are over the first 8 and the last 8 steps. From capture/gpu/summary/miles-gb10.json.
 ```
 
-This is one seed. From one step to the next the reward changed by as much as 0.195, from 0.871 at step 36 to 0.676 at step 37. Read the trend from the 8-step means, not from one step.
+This is one seed. From one step to the next the reward changed by as much as 0.207, from 0.801 at step 30 to 0.594 at step 31. Read the trend from the 8-step means, not from one step.
 
 The log-probability gap did not move. It was 0.0153 over the first 8 steps and 0.0146 over the last 8, and it stayed between 0.0138 and 0.0162 in all 48. Training does not close this gap. The gap comes from the SGLang and FSDP kernels. True on-policy mode is the part of Miles that works on it.
 
