@@ -14,6 +14,7 @@ NUM_ROLLOUT = int(os.environ.get("MILES_NUM_ROLLOUT", "12"))
 RUN = os.environ.get("MILES_RUN", "true-on-policy" if TRUE_ON_POLICY else "plain")
 SGLANG_ATTENTION = os.environ.get("MILES_SGLANG_ATTENTION", "fa3")
 FSDP_ATTENTION = os.environ.get("MILES_FSDP_ATTENTION", "flash_attention_3")
+SEED = os.environ.get("MILES_SEED")
 
 
 def prepare():
@@ -41,6 +42,8 @@ def execute():
         "--actor-num-nodes 1 --actor-num-gpus-per-node 1 --colocate --train-backend fsdp "
         f"--save-debug-event-data {LAB}/runs/{RUN}/events "
     )
+    if SEED:
+        args += f"--seed {SEED} --rollout-seed {SEED} "
     env = {}
     if TRUE_ON_POLICY:
         args += (
