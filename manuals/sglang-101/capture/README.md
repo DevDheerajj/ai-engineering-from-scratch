@@ -67,7 +67,7 @@ python3 capture/gpu/summarize.py gb10
 | `gpu/run.py` | starts eight servers: default, no CUDA graph, no radix cache, no overlap, a 4,096-token pool, FP8 weights with an FP8 KV cache, EAGLE-3, and deterministic inference. `--only eagle3-no-env` checks the EAGLE-3 context length refusal, and `--only idle-probe` runs `ttft_idle_probe.py` |
 | `gpu/offline.py` | downloads the models and the ShareGPT file once, then sets `HF_HUB_OFFLINE=1` and adds `--dataset-path` to every `random` benchmark |
 | `gpu/sweep.py` | runs the `load`, `rate`, `prefix`, `waves`, `working-set`, and `mixed` sweeps with seeds 1, 2, and 3 and `--output-details`, into `gpu/runs/<profile>/<sweep>/<config>/`. The `dp2`, `dp2-tokens`, `tp2`, `pd`, and `pd-swap` configs need two GPUs in `CUDA_VISIBLE_DEVICES`, and `vllm` starts vLLM with the same KV pool as SGLang on that card |
-| `gpu/miles_grpo.py` | runs a short GRPO job with Miles inside the `radixark/miles` image, plain or with `MILES_TRUE_ON_POLICY=1` |
+| `gpu/miles_grpo.py` | runs a short GRPO job with Miles inside the `radixark/miles` image, plain or with `MILES_TRUE_ON_POLICY=1`, for `MILES_NUM_ROLLOUT` steps (12 by default) |
 | `gpu/miles_summary.py` | reduces Miles logs to `gpu/summary/miles-gb10.json`: per-step reward, response length, rollout time, the rollout and training log-probability gap, and the phase timers |
 | `gpu/summarize.py` | reduces the runs to `gpu/summary/<profile>.json`: the median, lowest, and highest value of each point, goodput, and TTFT and TPOT quantiles |
 | `gpu/determinism_probe.py` | sends one prompt at temperature 0 alone five times, then five times inside a batch of 16, and counts the different answers |
