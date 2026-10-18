@@ -13223,7 +13223,7 @@
    ]
   },
   "vllm": {
-   "kv_pool_tokens": null,
+   "kv_pool_tokens": 24096,
    "points": [
     {
      "x": 0.0,

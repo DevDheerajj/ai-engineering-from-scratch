@@ -166,7 +166,7 @@ claim: On the L4, both prefix caches kept the median TTFT under 500 ms at every 
 caption: Median TTFT against shared prompt length at 8 users, three seeds per point, on a log scale. Blue is SGLang with the radix cache, and amber is vLLM with prefix caching. Dashed rose is SGLang with the cache off, from the earlier run in section 3.3. From capture/gpu/summary/l4.json.
 ```
 
-**We measured** a tie. The throughput was within 2 percent at every shared length. The median TTFT of both engines stayed between 354 and 488 ms. The seed ranges overlapped at every length.
+**We measured** a tie on throughput, within 2 percent at every shared length. The median TTFT of both engines stayed between 354 and 488 ms. At 0 and 256 shared tokens, SGLang gave the first token sooner, outside the seed spread: 354 against 408 ms and 470 against 488 ms. From 1,024 tokens up, the seed ranges overlapped.
 
 vLLM leaned ahead on the tail. Its P99 TTFT was lower from 256 shared tokens up, 1,303 against 1,887 ms at 1,024. SGLang had the shorter time per token at 4,096, 75.6 against 80.8 ms. The median SM clock of every run was 1,395 MHz or higher.
 

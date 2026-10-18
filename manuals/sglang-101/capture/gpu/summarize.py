@@ -114,8 +114,8 @@ def summarize(profile):
                 point["tpot_quantiles_ms"] = quantiles(pooled_tpot)
                 points.append(point)
             server_log = config_dir / "server.log"
-            pool = re.search(r"#tokens: (\d+)", server_log.read_text()) if server_log.exists() else None
-            sweep[config_dir.name] = {"kv_pool_tokens": int(pool.group(1)) if pool else None, "points": points}
+            pool = re.search(r"#tokens: (\d+)|GPU KV cache size: ([\d,]+) tokens", server_log.read_text()) if server_log.exists() else None
+            sweep[config_dir.name] = {"kv_pool_tokens": int((pool.group(1) or pool.group(2)).replace(",", "")) if pool else None, "points": points}
         summary[sweep_dir.name] = sweep
     summary["quantiles"] = QUANTILES
     return summary
