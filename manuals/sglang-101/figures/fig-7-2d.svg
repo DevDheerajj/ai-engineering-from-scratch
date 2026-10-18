@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 330" role="img" aria-labelledby="fig-7-2d-title fig-7-2d-desc" font-family="JetBrains Mono, ui-monospace, monospace">
   <title id="fig-7-2d-title">Forty-eight GRPO steps on a GB10</title>
-  <desc id="fig-7-2d-desc">Raw reward and the share of samples cut at the 1,024-token limit for each of 48 plain GRPO steps of Miles with Qwen3-0.6B on GSM8K on one NVIDIA GB10, one seed. The mean reward of the first 8 steps is 0.636 and of the last 8 is 0.758. The cut share falls from a mean of 0.33 to 0.08 over the same steps.</desc>
+  <desc id="fig-7-2d-desc">Raw reward and the share of samples cut at the 1,024-token limit for each of 48 plain GRPO steps of Miles with Qwen3-0.6B on GSM8K on one NVIDIA GB10 with the default seed. The mean reward of the first 8 steps is 0.636 and of the last 8 is 0.758. The cut share falls from a mean of 0.33 to 0.08 over the same steps. A dashed line shows the raw reward of a second run with seed 2, which rises from a mean of 0.653 to 0.736.</desc>
   <line x1="66" y1="268" x2="606" y2="268" stroke="var(--m-ink-mute, #6f6f6a)" stroke-width="1" stroke-opacity="0.25"/>
   <text x="60" y="272" font-size="11" text-anchor="end" fill="var(--m-ink-soft, #4a4a4a)">0</text>
   <line x1="66" y1="216.5" x2="606" y2="216.5" stroke="var(--m-ink-mute, #6f6f6a)" stroke-width="1" stroke-opacity="0.25"/>
@@ -127,8 +127,59 @@
   <circle cx="583.02" cy="251.1" r="2.2" fill="var(--m-rose-ink, #b0344d)"/>
   <circle cx="594.51" cy="244.66" r="2.2" fill="var(--m-rose-ink, #b0344d)"/>
   <circle cx="606" cy="260.76" r="2.2" fill="var(--m-rose-ink, #b0344d)"/>
+  <path d="M66.0 148.1 L77.5 132.0 L89.0 135.2 L100.5 115.9 L112.0 142.5 L123.4 127.2 L134.9 128.0 L146.4 138.4 L157.9 133.6 L169.4 157.8 L180.9 124.8 L192.4 136.8 L203.9 140.9 L215.4 141.7 L226.9 115.1 L238.3 119.9 L249.8 150.5 L261.3 140.1 L272.8 122.4 L284.3 137.6 L295.8 117.5 L307.3 111.9 L318.8 114.3 L330.3 111.1 L341.7 125.6 L353.2 128.0 L364.7 124.8 L376.2 113.5 L387.7 103.0 L399.2 114.3 L410.7 114.3 L422.2 119.9 L433.7 106.3 L445.1 99.8 L456.6 121.5 L468.1 119.9 L479.6 102.2 L491.1 107.9 L502.6 107.9 L514.1 119.9 L525.6 124.0 L537.1 106.3 L548.6 111.1 L560.0 95.0 L571.5 126.4 L583.0 108.7 L594.5 124.8 L606.0 134.4" fill="none" stroke="var(--m-green-ink, #336b40)" stroke-width="1.8" stroke-dasharray="5 4" stroke-linejoin="round"/>
+  <circle cx="66" cy="148.1" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="77.49" cy="132.01" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="88.98" cy="135.23" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="100.47" cy="115.91" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="111.96" cy="142.47" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="123.45" cy="127.18" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="134.94" cy="127.98" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="146.43" cy="138.45" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="157.91" cy="133.62" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="169.4" cy="157.76" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="180.89" cy="124.77" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="192.38" cy="136.84" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="203.87" cy="140.86" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="215.36" cy="141.66" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="226.85" cy="115.11" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="238.34" cy="119.94" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="249.83" cy="150.52" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="261.32" cy="140.05" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="272.81" cy="122.35" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="284.3" cy="137.64" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="295.79" cy="117.52" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="307.28" cy="111.89" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="318.77" cy="114.3" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="330.26" cy="111.09" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="341.74" cy="125.57" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="353.23" cy="127.98" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="364.72" cy="124.77" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="376.21" cy="113.5" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="387.7" cy="103.04" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="399.19" cy="114.3" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="410.68" cy="114.3" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="422.17" cy="119.94" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="433.66" cy="106.26" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="445.15" cy="99.82" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="456.64" cy="121.55" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="468.13" cy="119.94" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="479.62" cy="102.23" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="491.11" cy="107.87" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="502.6" cy="107.87" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="514.09" cy="119.94" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="525.57" cy="123.96" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="537.06" cy="106.26" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="548.55" cy="111.09" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="560.04" cy="94.99" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="571.53" cy="126.38" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="583.02" cy="108.67" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="594.51" cy="124.77" r="2.8" fill="var(--m-green-ink, #336b40)"/>
+  <circle cx="606" cy="134.42" r="2.8" fill="var(--m-green-ink, #336b40)"/>
   <path d="M66 18 H84" fill="none" stroke="var(--m-green-ink, #336b40)" stroke-width="2" stroke-linejoin="round"/>
   <text x="90" y="22" font-size="11" fill="var(--m-green-ink, #336b40)">raw reward</text>
   <path d="M174 18 H192" fill="none" stroke="var(--m-rose-ink, #b0344d)" stroke-width="2" stroke-linejoin="round"/>
   <text x="198" y="22" font-size="11" fill="var(--m-rose-ink, #b0344d)">share of samples cut at 1,024 tokens</text>
+  <path d="M453.6 18 H471.6" fill="none" stroke="var(--m-green-ink, #336b40)" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round"/>
+  <text x="477.6" y="22" font-size="11" fill="var(--m-green-ink, #336b40)">raw reward, seed 2</text>
 </svg>

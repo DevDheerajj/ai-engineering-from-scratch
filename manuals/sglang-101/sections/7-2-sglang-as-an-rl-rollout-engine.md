@@ -133,7 +133,7 @@ The log-probability gap stayed between 0.0143 and 0.0163 in all 12 steps. That i
 
 ### Forty-eight steps
 
-We then ran the same job for 48 steps, with the same settings: memory fraction 0.4, temperature 1, and one seed, the default. Over those steps the policy started to learn, and the rollout got faster as it did.
+We then ran the same job for 48 steps, with the same settings: memory fraction 0.4 and temperature 1, first with the default seed. Over those steps the policy started to learn, and the rollout got faster as it did.
 
 ```listing
 title: the last GRPO step of 48
@@ -154,16 +154,42 @@ id: fig-7-2d
 kind: chart
 title: Forty-eight GRPO steps on a GB10
 claim: Over 48 steps the raw reward went up from a mean of 0.636 to 0.758, and the share of cut samples went down from 0.33 to 0.08.
-caption: Raw reward and the share of samples cut at 1,024 tokens for each step, one seed. The means are over the first 8 and the last 8 steps. From capture/gpu/summary/miles-gb10.json.
+caption: Raw reward and the share of samples cut at 1,024 tokens for each step of the default seed. The dashed line is the raw reward of seed 2. The means are over the first 8 and the last 8 steps. From capture/gpu/summary/miles-gb10.json.
 ```
 
-This is one seed. From one step to the next the reward changed by as much as 0.207, from 0.801 at step 30 to 0.594 at step 31. Read the trend from the 8-step means, not from one step.
+From one step to the next the reward changed by as much as 0.207, from 0.801 at step 30 to 0.594 at step 31. Read the trend from the 8-step means, not from one step.
 
 The log-probability gap did not move. It was 0.0153 over the first 8 steps and 0.0146 over the last 8, and it stayed between 0.0138 and 0.0162 in all 48. Training does not close this gap. The gap comes from the SGLang and FSDP kernels. True on-policy mode is the part of Miles that works on it.
 
 The last log lines also need a note. The SGLang scheduler printed `crashed with exit code -15`, and the Ray job then reported success. Exit code -15 means the scheduler got SIGTERM, here at the end of a finished job. Alert on the job status, not on that line alone.
 
 Two log lines are worth knowing before you trust a run. About 30 percent of the samples hit the 1,024-token limit, so the reward includes answers cut off before the end. And SGLang printed `post-warmup freeze_gc failed` once at startup. Training ran normally after it, so the warning cost nothing here.
+
+### A second seed
+
+We ran the same 48 steps again with `MILES_SEED=2`, which sets the train seed and the rollout seed. The GB10 shut down three times under this load, each time 10 to 15 minutes into the run. So this run had a guard. A script paused the container when the GPU reached 84 C, and resumed it at 74 C or after 2 minutes.
+
+The container was paused for about 60 percent of the 5 hours. A pause does not change what the model computes, so the reward, the lengths, the cut share, and the log-probability gap are valid. The rollout times are not, and we do not report them.
+
+```listing
+title: the last step of seed 2
+source: capture/gpu/out-miles/plain-48-s2-excerpt.log
+lang: text
+note: The rollout and training metrics of step 47 with MILES_SEED=2, and the job status. Long lines are cut.
+---
+metrics.py:94 - perf 47: {'rollout/raw_reward_unfiltered': 0.6484375, 'rollout/num_training_samples': 256, 'rollout/episode_raw_reward': 0.6484375, 'rollout/episode_response_length/mean': 514.0390625, 'rollout/episode_response_length/median
+{'train/loss': -5.122274160385132e-09, 'train/pg_loss': -5.122274160385132e-09, 'train/entropy_loss': 0.0, 'train/pg_clipfrac': 0.0, 'train/ppo_kl': 0.0, 'train/ess_ratio': 1.0, 'train/train_rollout_logprob_abs_diff': 0.014963770285248756,
+Job 'raysubmit_y4umCbEa8Qp5Bbad' succeeded
+```
+
+| Mean, first 8 steps / last 8 steps | Default seed | Seed 2 |
+|---|---|---|
+| Raw reward | 0.636 / 0.758 | 0.653 / 0.736 |
+| Response length, tokens | 724 / 447 | 712 / 480 |
+| Share cut at 1,024 tokens | 0.33 / 0.08 | 0.30 / 0.12 |
+| Log-probability gap | 0.0153 / 0.0146 | 0.0153 / 0.0150 |
+
+**We measured** the same result with the second seed. The reward went up, the responses got shorter, and fewer of them were cut. The log-probability gap stayed between 0.0138 and 0.0161 in all 48 steps. The largest change in reward from one step to the next was 0.160.
 
 ### True on-policy did not start on a GB10
 
@@ -220,10 +246,11 @@ That branch is a fair summary of this section. RL asks a serving engine for thin
 - Choose `p2p` only for multi-node MoE runs, and measure the update time first.
 - Log the rollout and training log-probability gap on every run, and do not expect training to close it.
 - Read the reward from means over several steps, because one step can move it by 0.2.
+- Pause a long RL job when the GPU runs hot, because a pause changes the timing and not the result.
 - Set `SGLANG_RETURN_ORIGINAL_LOGPROB` when your trainer compares at temperature 1.
 - Treat true on-policy as a Qwen3 dense diagnostic at v0.1.2.
 - Check that your GPU and image have both kernels of the true on-policy contract.
 - Alert on the rollout server's own errors, because the trainer can keep waiting on a dead engine.
 ```
 
-Sources: Miles at v0.1.2 (a22fd824): train.py, release-lock.json, docker/Dockerfile, docs/developer/versions.md, miles/ray/rollout/inference_controller.py, miles/backends/training_utils/weight_update/protocol.py, session.py, protocols/broadcast.py, protocols/cuda_ipc.py, protocols/p2p.py, protocols/delta.py, miles/true_on_policy/model_profiles.py, docs/advanced/p2p-weight-transfer.md; SGLang at v0.5.22: python/sglang/srt/entrypoints/http_server.py, python/sglang/srt/managers/io_struct.py (PauseGenerationReqInput), python/sglang/srt/managers/scheduler_components/weight_updater.py, python/sglang/srt/constants.py, python/sglang/srt/arg_groups/fields/exec_.py, python/sglang/srt/arg_groups/choices.py, python/sglang/srt/arg_groups/attention_hook.py, python/sglang/srt/layers/logprob_processor.py, docs/docs/advanced_features/sglang_for_rl.mdx; Miles issues #860, #1485, #3277, #3714; RadixArk and LMSYS posts: lmsys.org/blog/2025-11-19-miles and lmsys.org/blog/2026-08-18-miles-v0-1. Miles at 08752a12: miles/backends/fsdp_utils/actor.py, miles/true_on_policy/schema.py, examples/infra_features/true_on_policy/run_simple.py and run_simple_amd_triton.py. capture/gpu/miles_grpo.py, capture/gpu/miles_summary.py, capture/gpu/out-miles/plain-excerpt.log, capture/gpu/out-miles/plain-48-excerpt.log, capture/gpu/out-miles/true-on-policy-error.log, capture/gpu/summary/miles-gb10.json. capture/gpu/out-miles/true-on-policy-fa3-error.log.
+Sources: Miles at v0.1.2 (a22fd824): train.py, release-lock.json, docker/Dockerfile, docs/developer/versions.md, miles/ray/rollout/inference_controller.py, miles/backends/training_utils/weight_update/protocol.py, session.py, protocols/broadcast.py, protocols/cuda_ipc.py, protocols/p2p.py, protocols/delta.py, miles/true_on_policy/model_profiles.py, docs/advanced/p2p-weight-transfer.md; SGLang at v0.5.22: python/sglang/srt/entrypoints/http_server.py, python/sglang/srt/managers/io_struct.py (PauseGenerationReqInput), python/sglang/srt/managers/scheduler_components/weight_updater.py, python/sglang/srt/constants.py, python/sglang/srt/arg_groups/fields/exec_.py, python/sglang/srt/arg_groups/choices.py, python/sglang/srt/arg_groups/attention_hook.py, python/sglang/srt/layers/logprob_processor.py, docs/docs/advanced_features/sglang_for_rl.mdx; Miles issues #860, #1485, #3277, #3714; RadixArk and LMSYS posts: lmsys.org/blog/2025-11-19-miles and lmsys.org/blog/2026-08-18-miles-v0-1. Miles at 08752a12: miles/backends/fsdp_utils/actor.py, miles/true_on_policy/schema.py, examples/infra_features/true_on_policy/run_simple.py and run_simple_amd_triton.py. capture/gpu/miles_grpo.py, capture/gpu/miles_summary.py, capture/gpu/out-miles/plain-excerpt.log, capture/gpu/out-miles/plain-48-excerpt.log, capture/gpu/out-miles/plain-48-s2-excerpt.log, capture/gpu/out-miles/plain-48-s2-thermostat.log, capture/gpu/out-miles/true-on-policy-error.log, capture/gpu/summary/miles-gb10.json. capture/gpu/out-miles/true-on-policy-fa3-error.log.
