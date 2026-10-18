@@ -41,6 +41,7 @@ def configs(profile):
         "hicache": (p["model"], ["--enable-hierarchical-cache", "--hicache-ratio", "4"]),
         "chunk-1024": (p["model"], ["--chunked-prefill-size", "1024"]),
         "chunk-8192": (p["model"], ["--chunked-prefill-size", "8192"]),
+        "mixed-chunk": (p["model"], ["--enable-mixed-chunk"]),
         "tp2": (p["model"], ["--tp-size", "2"]),
         "dp2": (p["model"], ["--dp-size", "2"]),
         "dp2-tokens": (p["model"], ["--dp-size", "2", "--load-balance-method", "total_tokens"]),

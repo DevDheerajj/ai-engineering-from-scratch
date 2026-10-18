@@ -98,7 +98,17 @@ The common advice is to make the chunk smaller, so that decode steps run more of
 
 On the L4, this workload was more than the card could serve at every rate. Output stayed near 44 tokens per second, and the median first token took 36 to 62 seconds. The card ran hot, at a median clock of 690 to 915 MHz, because this sweep had no clock floor. The worst token gap stayed between 2.5 and 2.9 s with either chunk.
 
-The scheduler rule from the start of this section fits the L4 result. Prefill wins whenever the scheduler can admit something. With a full queue, a smaller chunk adds more prefill turns ahead of the decode steps, and the stream still waits. `--enable-mixed-chunk` puts decode tokens into the prefill batch, and we did not test it.
+The scheduler rule from the start of this section fits the L4 result. Prefill wins whenever the scheduler can admit something. With a full queue, a smaller chunk adds more prefill turns ahead of the decode steps, and the stream still waits.
+
+`--enable-mixed-chunk` puts the decode tokens into the prefill batch, so a decode step does not wait for a prefill turn. We ran it on the L4 against a new default run in the same session, at a median clock of 953 to 1,095 MHz.
+
+| Rate, per second | Output tok/s, default / mixed chunk | P99 ITL, default / mixed chunk |
+|---|---|---|
+| 0.5 | 46.5 / 46.5 | 2,521 / 2,406 ms |
+| 1 | 46.6 / 47.5 | 2,491 / 2,289 ms |
+| 2 | 47.3 / 47.6 | 2,572 / 2,418 ms |
+
+The mixed chunk lowered the median P99 ITL by 5 to 8 percent, and the seed ranges overlapped at every rate. The worst token gap still took more than 2.2 s. On a card that cannot keep up with its prompts, neither flag gives the stream a smooth flow. The fix is more prefill capacity, or fewer long prompts per second.
 
 ```listing
 title: a larger chunk that did not start
