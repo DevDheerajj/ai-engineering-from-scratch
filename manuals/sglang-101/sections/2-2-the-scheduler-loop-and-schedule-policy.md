@@ -77,6 +77,43 @@ Two rules in the code limit the cache-aware policies {{code}}:
 
 So `lpm` helps only in a narrow band. The queue must be long enough to reorder, short enough to stay under 128, and full of shared prefixes.
 
+## Chunk size under long prompts
+
+**Chunked prefill:** the rule that splits a long prompt into pieces of at most `--chunked-prefill-size` tokens, one piece per prefill batch. The default depends on GPU memory, as the table in [section 4.1](#s-forwardmode-and-cuda-graphs) shows. It is 4,096 on a 22 GB L4 and 8,192 on the GB10.
+
+The common advice is to make the chunk smaller, so that decode steps run more often between pieces of a long prompt. We tested that advice. Each run sent 48 prompts of 1,024 to 4,096 tokens, with 256 tokens of output. Requests arrived at a Poisson rate of 0.5, 1, or 2 per second, with three seeds.
+
+| GPU, model | Chunk | Rate, per second | Output tok/s | Median TTFT | P99 ITL | Median SM clock |
+|---|---|---|---|---|---|---|
+| GB10, Qwen3-30B-A3B | 8,192, the default | 0.5 | 70.1 | 892 ms | 929 ms | 2,411 MHz |
+| GB10, Qwen3-30B-A3B | 1,024 | 0.5 | 68.1 | 1,253 ms | 1,977 ms | 2,398 MHz |
+| GB10, Qwen3-30B-A3B | 8,192, the default | 2 | 129.3 | 269 ms | 312 ms | 2,411 MHz |
+| GB10, Qwen3-30B-A3B | 1,024 | 2 | 130.1 | 256 ms | 260 ms | 2,411 MHz |
+| L4, Qwen3-8B | 4,096, the default | 0.5 | 44.1 | 36.0 s | 2,579 ms | 773 MHz |
+| L4, Qwen3-8B | 1,024 | 0.5 | 43.3 | 37.4 s | 2,922 ms | 690 MHz |
+| L4, Qwen3-8B | 4,096, the default | 2 | 46.2 | 59.8 s | 2,512 ms | 915 MHz |
+| L4, Qwen3-8B | 1,024 | 2 | 44.0 | 62.5 s | 2,930 ms | 825 MHz |
+
+**We measured** no gain from a smaller chunk on either machine. On the GB10 we ran the default, an explicit 8,192, and 1,024. At 1 and 2 requests per second, all three were inside the seed spread of each other. At 0.5 per second, the 1,024 chunk was worse. Its P99 ITL was 1,977 against 929 ms, and the seed ranges did not overlap.
+
+On the L4, this workload was more than the card could serve at every rate. Output stayed near 44 tokens per second, and the median first token took 36 to 62 seconds. The card ran hot, at a median clock of 690 to 915 MHz, because this sweep had no clock floor. The worst token gap stayed between 2.5 and 2.9 s with either chunk.
+
+The scheduler rule from the start of this section fits the L4 result. Prefill wins whenever the scheduler can admit something. With a full queue, a smaller chunk adds more prefill turns ahead of the decode steps, and the stream still waits. `--enable-mixed-chunk` puts decode tokens into the prefill batch, and we did not test it.
+
+```listing
+title: a larger chunk that did not start
+source: capture/gpu/incidents/l4-chunk-8192-prefill-graph-oom.txt
+lang: text
+note: SGLang 0.5.22 on the L4 with --chunked-prefill-size 8192. The last error names PyTorch, and the cause is two lines above it.
+---
+[2026-10-18 07:27:15] Memory pool end. avail mem=2.90 GB
+Capturing prefill shape (num_tokens=8192 avail_mem=2.33 GB)
+torch.AcceleratorError: CUDA error: out of memory
+[2026-10-18 07:28:44] RuntimeError: num_active_captures_ > 0 INTERNAL ASSERT FAILED at "/__w/pytorch/pytorch/c10/cuda/CUDACachingAllocator.cpp":3209, please report a bug to PyTorch. markCaptureEnd called with no captures in progress
+```
+
+The other direction failed on the L4 at startup. With a chunk of 8,192, the KV pool took the same 24,094 tokens as before. The prefill graph for 8,192 tokens then needed more than the 2.33 GB that remained. The last line of the log is a PyTorch assert that asks for a bug report. The real error is the out-of-memory line above it.
+
 ## Our position
 
 Keep `fcfs`. It is fair, it costs no prefix matching on the hot path, and the radix cache still gives you the cache hits. A shared prefix that arrived first is in the tree when the next request matches it, whatever the order.
@@ -96,6 +133,8 @@ The scheduler loop admits against every limit at once, and the smallest one wins
 - Keep the fcfs default unless you measured a cache gain from lpm.
 - Expect lpm to change to FCFS above 128 waiting requests.
 - Check the log for the effective limit after you set a limit.
+- Measure P99 ITL before you make the prefill chunk smaller, because it did not help in our runs.
+- Expect a chunk above the default for your GPU to need more free memory at startup.
 ```
 
-Sources: python/sglang/srt/managers/scheduler.py (run_event_loop, event_loop_normal, get_next_batch_to_run, run_batch, process_batch_result), python/sglang/srt/managers/schedule_policy.py (CacheAwarePolicy, CacheAgnosticPolicy, WAITING_QUEUE_PREFIX_MATCH_MAX, _determine_active_policy, _validate_and_adjust_policy), python/sglang/srt/arg_groups/fields/schedule.py at v0.5.22; SGLang paper, arXiv 2312.07104; capture/out/server-default.log; issue https://github.com/sgl-project/sglang/issues/36889.
+Sources: python/sglang/srt/managers/scheduler.py (run_event_loop, event_loop_normal, get_next_batch_to_run, run_batch, process_batch_result), python/sglang/srt/managers/schedule_policy.py (CacheAwarePolicy, CacheAgnosticPolicy, WAITING_QUEUE_PREFIX_MATCH_MAX, _determine_active_policy, _validate_and_adjust_policy), python/sglang/srt/arg_groups/fields/schedule.py at v0.5.22; SGLang paper, arXiv 2312.07104; capture/out/server-default.log; issue https://github.com/sgl-project/sglang/issues/36889; capture/gpu/summary/gb10.json and capture/gpu/summary/l4.json (mixed); capture/gpu/sweep.py (mixed sweep); capture/gpu/incidents/l4-chunk-8192-prefill-graph-oom.txt.
